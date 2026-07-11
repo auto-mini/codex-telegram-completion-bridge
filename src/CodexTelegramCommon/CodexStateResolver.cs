@@ -4,7 +4,12 @@ using Microsoft.Data.Sqlite;
 
 namespace CodexTelegramCommon;
 
-public sealed partial class CodexStateResolver(string codexHome)
+public interface IStateResolver
+{
+    StateResolution Resolve(string threadId);
+}
+
+public sealed partial class CodexStateResolver(string codexHome) : IStateResolver
 {
     private static readonly HashSet<string> RequiredColumns = new(StringComparer.OrdinalIgnoreCase)
     {

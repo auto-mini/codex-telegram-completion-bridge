@@ -56,3 +56,33 @@ public sealed class ProtectedJsonStore<T>(string path, ISecretProtector protecto
         }
     }
 }
+
+public static class ProtectedJsonCodec
+{
+    public static byte[] Protect<T>(T value, ISecretProtector protector)
+    {
+        var plaintext = JsonSerializer.SerializeToUtf8Bytes(value, JsonDefaults.Options);
+        try
+        {
+            return protector.Protect(plaintext);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+
+    public static T Unprotect<T>(ReadOnlySpan<byte> ciphertext, ISecretProtector protector)
+    {
+        var plaintext = protector.Unprotect(ciphertext);
+        try
+        {
+            return JsonSerializer.Deserialize<T>(plaintext, JsonDefaults.Options)
+                   ?? throw new InvalidDataException("Protected JSON is empty.");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+}

@@ -20,7 +20,21 @@ public sealed record TelegramCredentials(
     string BotToken,
     long BotUserId,
     long ChatId,
-    string ChatType);
+    string ChatType)
+{
+    public void Validate()
+    {
+        if (SchemaVersion != BridgeConstants.SchemaVersion ||
+            string.IsNullOrWhiteSpace(BotToken) || BotToken.Length > 256 ||
+            BotToken.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)) ||
+            BotUserId <= 0 ||
+            ChatId == 0 ||
+            !string.Equals(ChatType, "private", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Telegram credentials failed validation.");
+        }
+    }
+}
 
 public enum UpstreamKind
 {
@@ -35,7 +49,38 @@ public sealed record UpstreamRecord(
     long? ExecutableSizeBytes,
     DateTimeOffset CapturedAtUtc,
     string CapturedConfigSha256,
-    UpstreamKind Kind);
+    UpstreamKind Kind)
+{
+    public void ValidateShape()
+    {
+        if (SchemaVersion != BridgeConstants.SchemaVersion ||
+            Argv is null ||
+            CapturedConfigSha256 is not { Length: 64 } ||
+            !CapturedConfigSha256.All(Uri.IsHexDigit))
+        {
+            throw new InvalidDataException("Upstream record metadata is invalid.");
+        }
+
+        if (Kind == UpstreamKind.Absent)
+        {
+            if (Argv.Count != 0 || ExecutableSha256 is not null || ExecutableSizeBytes is not null)
+            {
+                throw new InvalidDataException("Absent upstream record is invalid.");
+            }
+
+            return;
+        }
+
+        if (Kind != UpstreamKind.CodexComputerUseTurnEnded ||
+            Argv.Count != 2 ||
+            ExecutableSha256 is not { Length: 64 } ||
+            !ExecutableSha256.All(Uri.IsHexDigit) ||
+            ExecutableSizeBytes is null or < 0)
+        {
+            throw new InvalidDataException("Vendor upstream record is invalid.");
+        }
+    }
+}
 
 public sealed class RuntimeConfig
 {

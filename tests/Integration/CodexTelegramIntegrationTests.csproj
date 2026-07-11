@@ -12,5 +12,6 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <ProjectReference Include="..\..\src\CodexTelegramCommon\CodexTelegramCommon.csproj" />
+    <ProjectReference Include="..\TestVendor\CodexTelegramTestVendor.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

@@ -66,11 +66,18 @@ public sealed class VendorExecutableValidator(string allowedRoot)
 
     public VendorValidationResult ValidateCaptured(UpstreamRecord record)
     {
+        try
+        {
+            record.ValidateShape();
+        }
+        catch (InvalidDataException)
+        {
+            return VendorValidationResult.Failure("UPSTREAM_RECORD_INVALID");
+        }
+
         if (record.Kind == UpstreamKind.Absent)
         {
-            return record.Argv.Count == 0
-                ? VendorValidationResult.Success(record)
-                : VendorValidationResult.Failure("ABSENT_UPSTREAM_INVALID");
+            return VendorValidationResult.Success(record);
         }
 
         var current = ValidateArgv(record.Argv, record.CapturedConfigSha256, record.CapturedAtUtc);

@@ -144,6 +144,18 @@ public sealed class QueueStore(string databasePath)
             });
     }
 
+    public void ReleaseInflightForDelivery(string eventId, DateTimeOffset nextAttemptUtc, string? errorCode = null)
+    {
+        TransitionInflight(
+            eventId,
+            "state = 'pending', lease_until_utc = NULL, next_attempt_at_utc = $next, last_error_code = $error",
+            command =>
+            {
+                command.Parameters.AddWithValue("$next", Format(nextAttemptUtc));
+                command.Parameters.AddWithValue("$error", errorCode is null ? DBNull.Value : ValidateCode(errorCode));
+            });
+    }
+
     public void MarkShadow(string eventId, byte[] protectedEnvelope, DateTimeOffset completedUtc) =>
         Complete(eventId, EventState.Shadow, completedUtc, protectedEnvelope, null);
 
@@ -258,6 +270,8 @@ public sealed class QueueStore(string databasePath)
 
     public bool HasBlockingHealthCondition() => GetHealthConditions().Any(item => HealthCodes.Blocking.Contains(item.ConditionCode));
 
+    public bool HasNetworkBlockingHealthCondition() => GetHealthConditions().Any(item => HealthCodes.NetworkBlocking.Contains(item.ConditionCode));
+
     public DateTimeOffset? GetTelegramNotBeforeUtc() =>
         GetHealthConditions().FirstOrDefault(item => item.ConditionCode == HealthCodes.TelegramRetrying)?.NotBeforeUtc;
 
@@ -289,6 +303,17 @@ public sealed class QueueStore(string databasePath)
         using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT MIN(observed_at_utc) FROM events WHERE state IN ('pending', 'inflight');";
+        var value = command.ExecuteScalar();
+        return value is string text ? Parse(text) : null;
+    }
+
+    public DateTimeOffset? GetNextPendingDueUtc(bool includeDeliveryReady)
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        using var command = connection.CreateCommand();
+        command.CommandText = includeDeliveryReady
+            ? "SELECT MIN(next_attempt_at_utc) FROM events WHERE state = 'pending';"
+            : "SELECT MIN(next_attempt_at_utc) FROM events WHERE state = 'pending' AND delivery_envelope_dpapi IS NULL;";
         var value = command.ExecuteScalar();
         return value is string text ? Parse(text) : null;
     }

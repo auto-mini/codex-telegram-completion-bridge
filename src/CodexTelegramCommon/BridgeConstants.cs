@@ -95,4 +95,13 @@ public static class HealthCodes
         UpstreamBlocked,
         LocalStateBlocked,
     };
+
+    public static readonly IReadOnlySet<string> NetworkBlocking = new HashSet<string>(StringComparer.Ordinal)
+    {
+        AuthBlocked,
+        ChatBlocked,
+        TelegramApiBlocked,
+        InstallAclBlocked,
+        LocalStateBlocked,
+    };
 }
