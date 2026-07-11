@@ -2,6 +2,16 @@
   "version": 2,
   "dependencies": {
     "net8.0-windows7.0": {
+      "Microsoft.Data.Sqlite": {
+        "type": "Direct",
+        "requested": "[8.0.28, )",
+        "resolved": "8.0.28",
+        "contentHash": "YM522Q363v0GBq/3xpjWvUALurnwxDoAhhihlYoWhkBQ98XHQxZf01IOwLiUaWFl3PL45PLa4Wbm3FqyijMZGg==",
+        "dependencies": {
+          "Microsoft.Data.Sqlite.Core": "8.0.28",
+          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.6"
+        }
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[18.0.1, )",
@@ -156,18 +166,15 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[8.0.28, )",
+          "System.Security.Cryptography.ProtectedData": "[8.0.0, )",
           "Tomlyn": "[2.10.1, )"
         }
       },
-      "Microsoft.Data.Sqlite": {
+      "System.Security.Cryptography.ProtectedData": {
         "type": "CentralTransitive",
-        "requested": "[8.0.28, )",
-        "resolved": "8.0.28",
-        "contentHash": "YM522Q363v0GBq/3xpjWvUALurnwxDoAhhihlYoWhkBQ98XHQxZf01IOwLiUaWFl3PL45PLa4Wbm3FqyijMZGg==",
-        "dependencies": {
-          "Microsoft.Data.Sqlite.Core": "8.0.28",
-          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.6"
-        }
+        "requested": "[8.0.0, )",
+        "resolved": "8.0.0",
+        "contentHash": "+TUFINV2q2ifyXauQXRwy4CiBhqvDEDZeVJU7qfxya4aRYOKzVBpN+4acx25VcPB9ywUN6C0n8drWl110PhZEg=="
       },
       "Tomlyn": {
         "type": "CentralTransitive",

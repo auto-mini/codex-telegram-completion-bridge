@@ -49,6 +49,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[8.0.28, )",
+          "System.Security.Cryptography.ProtectedData": "[8.0.0, )",
           "Tomlyn": "[2.10.1, )"
         }
       },
@@ -61,6 +62,12 @@
           "Microsoft.Data.Sqlite.Core": "8.0.28",
           "SQLitePCLRaw.bundle_e_sqlite3": "2.1.6"
         }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.0, )",
+        "resolved": "8.0.0",
+        "contentHash": "+TUFINV2q2ifyXauQXRwy4CiBhqvDEDZeVJU7qfxya4aRYOKzVBpN+4acx25VcPB9ywUN6C0n8drWl110PhZEg=="
       },
       "Tomlyn": {
         "type": "CentralTransitive",
