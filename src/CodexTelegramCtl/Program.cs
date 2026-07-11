@@ -231,9 +231,9 @@ internal static class Program
             return Fail("SHADOW_SEQUENCE_INVALID", 2);
         }
 
-        var expectedPc = ReadNoEcho("예상 PC 이름: ");
+        var expectedPc = ReadNoEcho("Expected PC name: ");
         Console.WriteLine();
-        var expectedTitle = ReadNoEcho("예상 스레드 제목: ");
+        var expectedTitle = ReadNoEcho($"Visible task title prefix ({BridgeConstants.MinTitleVerificationPrefixGraphemes}+ characters; trailing ellipsis is optional): ");
         Console.WriteLine();
         var layout = InstallationLayout.DefaultForCurrentUser();
         Console.WriteLine(Control(layout).VerifyShadow(layout, sequence, expectedPc, expectedTitle) ? "MATCH" : "MISMATCH");

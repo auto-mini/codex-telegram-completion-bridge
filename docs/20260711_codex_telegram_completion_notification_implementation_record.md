@@ -4,7 +4,7 @@
 
 - Date: 2026-07-12 (Asia/Seoul)
 - Branch: `codex/telegram-completion-bridge`
-- Revised blueprint SHA-256: `059a01a1ba1194f691231c90fbc310460e337b4eb9f1ec04fe8e412e0c52ab68`
+- Revised blueprint SHA-256: `1cf0239d2eab0f7aa1405a1046b7c80af0b47e84e2e5b4e92c648e0aa8d70539`
 - Implementation commits:
   - `1b4f35f` — secure event, queue, resolver, Telegram, and DPAPI core
   - `38407e5` — durable hook/worker pipeline and upstream launch contract
@@ -19,9 +19,9 @@
 
 - Clean locked restore: PASS
 - Release build with warnings as errors: PASS, 0 warnings
-- Unit tests: 73/73 PASS
-- Integration tests: 80/80 PASS
-- Total automated tests: 153/153 PASS
+- Unit tests: 79/79 PASS
+- Integration tests: 81/81 PASS
+- Total automated tests: 160/160 PASS
 - Real current-user Task Scheduler create/disable/enable/query/remove test: PASS
 - Actual console-subsystem upstream contract test: PASS
   - exact argv and original synthetic payload
@@ -42,12 +42,20 @@
   - nested bridge captured one shadow completion
   - revised doctor reports `BRIDGE_ACTIVE_WRAPPED`
   - canary.7 upgrade plan classifies the live wrapper as `healthy_bridge`
+- Shadow identity qualification: PASS
+  - three distinct current-task records matched exact PC and a 12+ grapheme visible title prefix
+  - an interleaved completion from another Codex task correctly produced `MISMATCH` and blocked Telegram setup
+  - trailing sidebar ellipsis and multiline/long-title normalization are covered by tests
+  - four non-current events with no persisted Codex thread remain pending with immutable shadow ingest mode; they are network-ineligible and retained for classification evidence before additional-PC release
+- Telegram bootstrap and setup test: PASS
+  - bot identity, no-webhook state, private chat challenge, setup test, and atomic DPAPI credential commit completed
+  - online `getMe`/`getChat` doctor checks report `OK`
 
 ## Canary package
 
-- Release: `CodexTelegramBridge-1.0.0-canary.7-win-x64`
-- `manifest.sha256` outer SHA-256: `7f70acc433f1786385c09487829f35b3a10d340e40311d43be82d7ad9fe90f5c`
-- Rebuild reproducibility check: PASS — canary.6 and canary.7 produced the same outer manifest hash.
+- Release: `CodexTelegramBridge-1.0.0-canary.9-win-x64`
+- `manifest.sha256` outer SHA-256: `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`
+- Rebuild reproducibility check: PASS — canary.8 and canary.9 produced the same outer manifest hash.
 - Package contents are fully covered by the inner manifest; unlisted immutable artifacts fail verification.
 - The sibling outer-hash record must be retained separately from the release directory.
 
@@ -57,6 +65,7 @@
 - Existing `codex-computer-use.exe turn-ended` is captured under the fixed final-path predicate and invoked independently of Telegram capture success.
 - The exact verified Computer Use `--previous-notify` wrapper is accepted as an active bridge shape; nested bridge execution suppresses a second vendor launch.
 - Malformed, oversized, extra-argument, untrusted-root, and unsupported nested bridge shapes fail closed, including uninstall dangling-reference checks.
+- Shadow verification accepts only an exact PC and a no-echo visible title prefix of at least 12 graphemes; copied UI ellipses are stripped without revealing stored titles.
 - Hook mode performs no network I/O.
 - SQLite deduplication, emergency spool, leases, independent resolution/delivery retries, persistent health gates, retention, and corruption markers are implemented.
 - Bot token and selected bot/chat generation are committed as one DPAPI CurrentUser blob.
@@ -72,11 +81,11 @@
 | Implementation and automated verification | PASS |
 | Package and read-only current-PC plan | PASS |
 | Current-PC shadow apply | PASS |
-| Post-restart Computer Use wrapper compatibility | PASS — corrected canary upgrade queued |
-| Three local root shadow observations | IN PROGRESS — 1/3 observed |
+| Post-restart Computer Use wrapper compatibility | PASS |
+| Three local root shadow observations | PASS — sequences 14, 15, and 16 matched |
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
-| Telegram bootstrap and setup test | PENDING |
+| Telegram bootstrap and setup test | PASS |
 | Current-PC live canary | PENDING |
 | Android Remote canary | PENDING |
 | 48-hour soak | PENDING |

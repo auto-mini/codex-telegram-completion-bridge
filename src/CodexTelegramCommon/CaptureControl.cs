@@ -103,7 +103,7 @@ public sealed class CaptureControl(
 
     public IReadOnlyList<ShadowRecord> ListShadow(InstallationLayout layout) => new QueueStore(layout.DatabasePath).ListShadow();
 
-    public bool VerifyShadow(InstallationLayout layout, long sequence, string expectedPc, string expectedTitle)
+    public bool VerifyShadow(InstallationLayout layout, long sequence, string expectedPc, string expectedTitlePrefix)
     {
         var protectedEnvelope = new QueueStore(layout.DatabasePath).GetShadowEnvelope(sequence)
                                 ?? throw new InvalidOperationException("SHADOW_SEQUENCE_NOT_FOUND");
@@ -111,10 +111,10 @@ public sealed class CaptureControl(
         {
             var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(protectedEnvelope, protector);
             var pc = TextNormalizer.NormalizePcName(expectedPc);
-            var title = TextNormalizer.NormalizeTitle(expectedTitle);
-            return pc is not null && title is not null &&
+            var titlePrefix = TextNormalizer.NormalizeTitleVerificationPrefix(expectedTitlePrefix);
+            return pc is not null && titlePrefix is not null &&
                    string.Equals(pc, envelope.PcName, StringComparison.Ordinal) &&
-                   string.Equals(title, envelope.ThreadTitle, StringComparison.Ordinal);
+                   envelope.ThreadTitle.StartsWith(titlePrefix, StringComparison.Ordinal);
         }
         finally
         {

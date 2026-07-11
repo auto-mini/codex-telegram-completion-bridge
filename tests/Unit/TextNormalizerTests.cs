@@ -41,4 +41,22 @@ public sealed class TextNormalizerTests
     [InlineData("")]
     [InlineData("\r\n\t")]
     public void Empty_normalized_value_is_rejected(string? value) => Assert.Null(TextNormalizer.NormalizeTitle(value));
+
+    [Theory]
+    [InlineData("Mobile GPT notification title…", "Mobile GPT notification title")]
+    [InlineData("Mobile GPT notification title...", "Mobile GPT notification title")]
+    [InlineData("  Mobile\tGPT notification title  ", "Mobile GPT notification title")]
+    public void Normalizes_visible_verification_prefix_and_removes_ui_ellipsis(string input, string expected)
+    {
+        Assert.Equal(expected, TextNormalizer.NormalizeTitleVerificationPrefix(input));
+    }
+
+    [Theory]
+    [InlineData("short")]
+    [InlineData("……")]
+    [InlineData("...")]
+    public void Rejects_verification_prefix_below_minimum_length(string input)
+    {
+        Assert.Null(TextNormalizer.NormalizeTitleVerificationPrefix(input));
+    }
 }

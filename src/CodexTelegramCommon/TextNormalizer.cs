@@ -7,6 +7,28 @@ public static class TextNormalizer
 {
     public static string? NormalizeTitle(string? value) => Normalize(value, BridgeConstants.MaxTitleGraphemes, BridgeConstants.MaxTitleUtf16Length);
 
+    public static string? NormalizeTitleVerificationPrefix(string? value)
+    {
+        var normalized = NormalizeTitle(value);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (normalized.EndsWith('…'))
+        {
+            normalized = normalized[..^1].TrimEnd();
+        }
+        else if (normalized.EndsWith("...", StringComparison.Ordinal))
+        {
+            normalized = normalized[..^3].TrimEnd();
+        }
+
+        return StringInfo.ParseCombiningCharacters(normalized).Length >= BridgeConstants.MinTitleVerificationPrefixGraphemes
+            ? normalized
+            : null;
+    }
+
     public static string? NormalizePcName(string? value) => Normalize(value, BridgeConstants.MaxPcNameGraphemes, BridgeConstants.MaxPcNameUtf16Length);
 
     public static string RenderCompletion(string pcName, string threadTitle) =>

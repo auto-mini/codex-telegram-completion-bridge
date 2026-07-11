@@ -324,7 +324,7 @@ Resolver outcomes are fixed:
 
 A `not-ready` event that remains unresolved for 24 hours moves to quarantine with `THREAD_STATE_TIMEOUT` and sets `EVENT_QUARANTINED`; it is not deleted and can be replayed only after `doctor` confirms a compatible resolver.
 
-For an event whose immutable `ingest_mode` is shadow, `root-ready` creates the encrypted envelope and marks the event `shadow` instead of sending. `CodexTelegramCtl shadow list` prints only a sequence number, observed UTC time, and event-id prefix. `shadow verify <sequence>` prompts with no echo for the expected PC name and title, compares them to the decrypted envelope, and prints only `MATCH` or `MISMATCH`; it never accepts those values as command-line arguments or logs or displays either entered or stored values. Shadow tests are run one completion at a time so sequence selection is unambiguous. Shadow rows are retained for seven days and are never converted to pending or live rows.
+For an event whose immutable `ingest_mode` is shadow, `root-ready` creates the encrypted envelope and marks the event `shadow` instead of sending. `CodexTelegramCtl shadow list` prints only a sequence number, observed UTC time, and event-id prefix. `shadow verify <sequence>` prompts with no echo for the exact expected PC name and a visible task-title prefix of at least 12 graphemes, compares them to the decrypted envelope, and prints only `MATCH` or `MISMATCH`. A trailing UI ellipsis (`…` or `...`) is ignored, making long sidebar-truncated and multiline titles verifiable. It never accepts those values as command-line arguments or logs or displays either entered or stored values. Shadow tests are run one completion at a time so sequence selection is unambiguous. Shadow rows are retained for seven days and are never converted to pending or live rows.
 
 If a canary exposes a new scalar source, the implementer may not accept it automatically. A human must verify that the event came from a user-visible root thread, add that exact scalar to a versioned fixture, and rerun all classification and canary tests. Structured sources not explicitly understood remain unknown.
 
@@ -626,7 +626,7 @@ Required observations:
 
 - three distinct local root completions, performed one at a time, captured exactly once;
 - correct root classification and non-empty title resolution;
-- interactive expected-name/title comparison returns `MATCH` for all three root events without printing the stored values;
+- interactive expected-PC/title-prefix comparison returns `MATCH` for all three root events without printing the stored values;
 - one synthetic notify payload referencing a known persisted subagent is suppressed; if the installed Codex build also emits notify for a deliberately created real subagent, that event is suppressed as an additional observation;
 - one cancellation produces no candidate event;
 - for every observed completion, the vendor upstream process starts successfully with the same argv shape as before installation, and one controlled Computer Use task has the same observable completion behavior before and after installation;

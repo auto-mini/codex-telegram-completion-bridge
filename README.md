@@ -46,6 +46,8 @@ $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
 & $ctl resume
 ```
 
+`shadow verify` asks, with no echo, for the exact PC name and at least the first 12 visible characters of the task title. A copied trailing `…` or `...` is ignored, so a sidebar-truncated title remains verifiable without exposing the full stored title.
+
 After desktop startup, Computer Use may place its verified `turn-ended --previous-notify` wrapper around the bridge. This is a supported active shape; `doctor` reports it as `BRIDGE_ACTIVE_WRAPPED`, and the bridge suppresses a second upstream launch so Computer Use is signaled only once.
 
 Bot tokens are accepted only through an interactive no-echo prompt. Never place a token in a command line, environment variable, plan, issue, log, or deployment record.

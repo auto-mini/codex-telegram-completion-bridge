@@ -7,6 +7,7 @@ public static class BridgeConstants
     public const int MaxOpaqueIdUtf16Length = 256;
     public const int MaxPcNameGraphemes = 64;
     public const int MaxTitleGraphemes = 160;
+    public const int MinTitleVerificationPrefixGraphemes = 12;
     public const int MaxPcNameUtf16Length = 512;
     public const int MaxTitleUtf16Length = 3_400;
     public const int MaxTelegramTextUtf16Length = 4_096;

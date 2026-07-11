@@ -25,6 +25,20 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Shadow_verification_accepts_visible_prefix_but_rejects_short_or_wrong_identity()
+    {
+        var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.RootReady, "Mobile GPT remote notification task"));
+        fixture.Enqueue();
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+        var control = new CaptureControl(protector, _ => { }, () => { });
+
+        Assert.True(control.VerifyShadow(fixture.Layout, 1, "Test PC", "Mobile GPT remote…"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Wrong PC", "Mobile GPT remote"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Test PC", "Different task title"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Test PC", "short"));
+    }
+
+    [Fact]
     public async Task Suppresses_subagent_without_telegram_credentials()
     {
         var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.Subagent));
