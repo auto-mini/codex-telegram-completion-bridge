@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>CodexTelegramBridge</AssemblyName>
+    <RootNamespace>CodexTelegramBridge</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CodexTelegramCommon\CodexTelegramCommon.csproj" />
+  </ItemGroup>
+</Project>
