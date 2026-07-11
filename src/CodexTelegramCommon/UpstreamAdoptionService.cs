@@ -30,7 +30,11 @@ public sealed class UpstreamAdoptionService(
         var configPath = Path.Combine(runtime.CodexHome, "config.toml");
         var bytes = File.ReadAllBytes(configPath);
         var notify = CodexConfigDocument.Parse(bytes).NotifyArgv;
-        if (notify is null || !InstallPlanner.IsExactBridgeArgv(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe")))
+        var match = BridgeNotifyCommand.Match(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"));
+        var active = match.Shape == BridgeNotifyShape.Direct ||
+                     match.Shape == BridgeNotifyShape.VendorWrapped &&
+                     validator.ValidateArgv(match.OuterVendorArgv ?? [], Hashing.Sha256Hex(bytes), utcNow()).IsValid;
+        if (!active)
         {
             throw new InvalidOperationException(HealthCodes.ConfigConflict);
         }

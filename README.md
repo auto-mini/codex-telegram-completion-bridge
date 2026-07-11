@@ -46,6 +46,8 @@ $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
 & $ctl resume
 ```
 
+After desktop startup, Computer Use may place its verified `turn-ended --previous-notify` wrapper around the bridge. This is a supported active shape; `doctor` reports it as `BRIDGE_ACTIVE_WRAPPED`, and the bridge suppresses a second upstream launch so Computer Use is signaled only once.
+
 Bot tokens are accepted only through an interactive no-echo prompt. Never place a token in a command line, environment variable, plan, issue, log, or deployment record.
 
 ## Rollback and removal
@@ -54,4 +56,4 @@ Bot tokens are accepted only through an interactive no-echo prompt. Never place 
 & .\scripts\uninstall.ps1
 ```
 
-Removal restores the captured upstream `notify` handler only when the current config still points exactly at the installed bridge. Mutable state and encrypted backups are retained unless `-PurgeState` is explicitly confirmed.
+Removal restores the captured upstream when the bridge is direct, or safely unwraps the bridge while leaving a verified outer Computer Use handler. Any unsupported nested bridge reference fails closed. Mutable state and encrypted backups are retained unless `-PurgeState` is explicitly confirmed.

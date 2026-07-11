@@ -94,8 +94,15 @@ public sealed class InstallPlanner(
             return NotifyClassification.Absent;
         }
 
-        if (IsExactBridgeArgv(argv, expectedBridgePath))
+        var bridgeMatch = BridgeNotifyCommand.Match(argv, expectedBridgePath);
+        if (bridgeMatch.IsActive)
         {
+            if (bridgeMatch.Shape == BridgeNotifyShape.VendorWrapped &&
+                !vendorValidator.ValidateArgv(bridgeMatch.OuterVendorArgv ?? [], configHash, utcNow()).IsValid)
+            {
+                return NotifyClassification.Conflict;
+            }
+
             return IsHealthyInstalledBridge(layout, configPath)
                 ? NotifyClassification.HealthyBridge
                 : NotifyClassification.Conflict;
@@ -148,10 +155,7 @@ public sealed class InstallPlanner(
     }
 
     internal static bool IsExactBridgeArgv(IReadOnlyList<string> argv, string expectedBridgePath) =>
-        argv.Count == 2 &&
-        Path.IsPathFullyQualified(argv[0]) &&
-        string.Equals(Path.GetFullPath(argv[0]), Path.GetFullPath(expectedBridgePath), StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(argv[1], "hook", StringComparison.Ordinal);
+        BridgeNotifyCommand.IsExactBridgeArgv(argv, expectedBridgePath);
 
     private static IReadOnlyList<string> Redact(IReadOnlyList<string>? argv, NotifyClassification classification) => classification switch
     {

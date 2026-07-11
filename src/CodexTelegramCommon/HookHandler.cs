@@ -66,7 +66,7 @@ public sealed class HookHandler(
             log.Write("WARN", parsed.ErrorCode ?? "PAYLOAD_INVALID");
         }
 
-        InvokeUpstream(layout, queue, log, originalNotifyJson);
+        InvokeUpstream(layout, config, queue, log, originalNotifyJson);
 
         if (parsed.Kind == NotifyParseKind.Completion && config is not null)
         {
@@ -109,10 +109,20 @@ public sealed class HookHandler(
         },
         WorkerCoordination.SignalExistingOrCreate);
 
-    private void InvokeUpstream(InstallationLayout layout, QueueStore? queue, OperationalLog log, string originalNotifyJson)
+    private void InvokeUpstream(
+        InstallationLayout layout,
+        RuntimeConfig? config,
+        QueueStore? queue,
+        OperationalLog log,
+        string originalNotifyJson)
     {
         try
         {
+            if (config is not null && IsAlreadyInvokedByVendorWrapper(layout, config))
+            {
+                return;
+            }
+
             var upstream = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, protector).Load();
             var result = new UpstreamLauncher(vendorValidator).Launch(upstream, originalNotifyJson);
             if (!result.Success)
@@ -125,6 +135,25 @@ public sealed class HookHandler(
         {
             SafeUpsertHealth(queue, HealthCodes.UpstreamBlocked);
             log.Write("ERROR", "UPSTREAM_STATE_INVALID", exception: exception);
+        }
+    }
+
+    private bool IsAlreadyInvokedByVendorWrapper(InstallationLayout layout, RuntimeConfig config)
+    {
+        try
+        {
+            var configBytes = File.ReadAllBytes(Path.Combine(config.CodexHome, "config.toml"));
+            var notify = CodexConfigDocument.Parse(configBytes).NotifyArgv;
+            var match = BridgeNotifyCommand.Match(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"));
+            return match.Shape == BridgeNotifyShape.VendorWrapped &&
+                   vendorValidator.ValidateArgv(
+                       match.OuterVendorArgv ?? [],
+                       Hashing.Sha256Hex(configBytes),
+                       DateTimeOffset.UtcNow).IsValid;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            return false;
         }
     }
 

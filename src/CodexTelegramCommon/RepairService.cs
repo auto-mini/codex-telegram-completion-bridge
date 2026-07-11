@@ -97,18 +97,29 @@ public sealed class RepairService(
         }
 
         var expectedBridge = Path.Combine(layout.Bin, "CodexTelegramBridge.exe");
-        if (document.NotifyArgv is not null && InstallPlanner.IsExactBridgeArgv(document.NotifyArgv, expectedBridge))
+        var match = BridgeNotifyCommand.Match(document.NotifyArgv, expectedBridge);
+        if (match.Shape == BridgeNotifyShape.Direct)
         {
             queue.ClearHealth(HealthCodes.RepairPending, HealthCodes.ConfigConflict);
             return new RepairResult(RepairOutcome.Healthy, "BRIDGE_ALREADY_ACTIVE");
         }
 
         var configHash = Hashing.Sha256Hex(configBytes);
-        var validation = vendorValidator.ValidateArgv(document.NotifyArgv ?? [], configHash, utcNow());
+        var preserveWrappedBridge = match.Shape == BridgeNotifyShape.VendorWrapped;
+        var validation = vendorValidator.ValidateArgv(
+            preserveWrappedBridge ? match.OuterVendorArgv ?? [] : document.NotifyArgv ?? [],
+            configHash,
+            utcNow());
         if (!validation.IsValid || validation.Record is null)
         {
             TrySetHealth(queue, HealthCodes.ConfigConflict);
             return new RepairResult(RepairOutcome.Conflict, HealthCodes.ConfigConflict);
+        }
+
+        if (preserveWrappedBridge && MatchesStoredUpstream(layout, validation.Record))
+        {
+            queue.ClearHealth(HealthCodes.RepairPending, HealthCodes.ConfigConflict, HealthCodes.UpstreamBlocked);
+            return new RepairResult(RepairOutcome.Healthy, "BRIDGE_ALREADY_ACTIVE_WRAPPED");
         }
 
         if (runningDesktopProcesses().Count > 0)
@@ -159,9 +170,12 @@ public sealed class RepairService(
             EnsureDesktopClosed();
             EnsureHash(configPath, configHash);
             Advance("CONFIG_PENDING");
-            edit = configTransaction.ReplaceNotify(configPath, configHash, [expectedBridge, "hook"]);
+            if (!preserveWrappedBridge)
+            {
+                edit = configTransaction.ReplaceNotify(configPath, configHash, [expectedBridge, "hook"]);
+            }
             EnsureDesktopClosed();
-            Advance("CONFIG_COMMITTED", edit.AfterSha256);
+            Advance("CONFIG_COMMITTED", edit?.AfterSha256 ?? configHash);
             new RuntimeConfigStore(layout.RuntimeConfigPath).Save(runtime);
             queue.ClearHealth(HealthCodes.RepairPending, HealthCodes.ConfigConflict, HealthCodes.UpstreamBlocked);
             Advance("COMMITTED");
@@ -179,7 +193,7 @@ public sealed class RepairService(
                     if (!string.Equals(currentHash, configHash, StringComparison.Ordinal))
                     {
                         var currentNotify = CodexConfigDocument.Parse(currentBytes).NotifyArgv;
-                        if (currentNotify is null || !InstallPlanner.IsExactBridgeArgv(currentNotify, expectedBridge))
+                        if (!IsActiveBridgeNotify(currentNotify, expectedBridge, currentHash))
                         {
                             throw new InvalidOperationException("CONFIG_RESTORE_CONFLICT");
                         }
@@ -254,7 +268,10 @@ public sealed class RepairService(
                 {
                     var runtime = new RuntimeConfigStore(layout.RuntimeConfigPath).Load();
                     var notify = CodexConfigDocument.Parse(currentBytes).NotifyArgv;
-                    if (notify is null || !InstallPlanner.IsExactBridgeArgv(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe")))
+                    if (!IsActiveBridgeNotify(
+                            notify,
+                            Path.Combine(layout.Bin, "CodexTelegramBridge.exe"),
+                            currentHash))
                     {
                         throw new InvalidOperationException("JOURNAL_CONFIG_CONFLICT");
                     }
@@ -273,6 +290,38 @@ public sealed class RepairService(
             TrySetHealth(queue, HealthCodes.LocalStateBlocked);
             return new RepairResult(RepairOutcome.Blocked, "REPAIR_RECOVERY_FAILED");
         }
+    }
+
+    private bool MatchesStoredUpstream(InstallationLayout layout, UpstreamRecord candidate)
+    {
+        try
+        {
+            var stored = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, protector).Load();
+            if (!vendorValidator.ValidateCaptured(stored).IsValid)
+            {
+                return false;
+            }
+
+            return stored.Kind == candidate.Kind &&
+                   stored.Argv.Count == 2 &&
+                   candidate.Argv.Count == 2 &&
+                   string.Equals(stored.Argv[0], candidate.Argv[0], StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(stored.Argv[1], candidate.Argv[1], StringComparison.Ordinal) &&
+                   string.Equals(stored.ExecutableSha256, candidate.ExecutableSha256, StringComparison.Ordinal) &&
+                   stored.ExecutableSizeBytes == candidate.ExecutableSizeBytes;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException or System.Security.Cryptography.CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    private bool IsActiveBridgeNotify(IReadOnlyList<string>? notify, string expectedBridge, string configHash)
+    {
+        var match = BridgeNotifyCommand.Match(notify, expectedBridge);
+        return match.Shape == BridgeNotifyShape.Direct ||
+               match.Shape == BridgeNotifyShape.VendorWrapped &&
+               vendorValidator.ValidateArgv(match.OuterVendorArgv ?? [], configHash, utcNow()).IsValid;
     }
 
     private static RuntimeConfig CopyRuntime(RuntimeConfig value, bool deliveryPaused) => new()

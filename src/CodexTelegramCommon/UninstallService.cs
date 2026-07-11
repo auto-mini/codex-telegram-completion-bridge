@@ -78,11 +78,14 @@ public sealed class UninstallService(
         var configHash = Hashing.Sha256Hex(configBytes);
         var document = CodexConfigDocument.Parse(configBytes);
         var expectedBridge = Path.Combine(layout.Bin, "CodexTelegramBridge.exe");
-        var pointsToBridge = document.NotifyArgv is not null && InstallPlanner.IsExactBridgeArgv(document.NotifyArgv, expectedBridge);
+        var match = BridgeNotifyCommand.Match(document.NotifyArgv, expectedBridge);
+        var wrappedVendorValidation = match.Shape == BridgeNotifyShape.VendorWrapped
+            ? vendorValidator.ValidateArgv(match.OuterVendorArgv ?? [], configHash, utcNow())
+            : null;
+        var pointsToBridge = match.Shape == BridgeNotifyShape.Direct || wrappedVendorValidation?.IsValid == true;
         if (!pointsToBridge)
         {
-            var referencesAnyBridge = document.NotifyArgv?.Any(value =>
-                string.Equals(Path.GetFileName(value), "CodexTelegramBridge.exe", StringComparison.OrdinalIgnoreCase)) == true;
+            var referencesAnyBridge = BridgeNotifyCommand.ReferencesBridge(document.NotifyArgv, expectedBridge);
             if (!keepConfigConflict || referencesAnyBridge)
             {
                 return new UninstallResult(UninstallOutcome.Conflict, HealthCodes.ConfigConflict, null);
@@ -119,14 +122,28 @@ public sealed class UninstallService(
 
             if (pointsToBridge)
             {
-                var upstream = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, protector).Load();
-                var validation = vendorValidator.ValidateCaptured(upstream);
-                if (!validation.IsValid)
+                IReadOnlyList<string>? desired;
+                if (match.Shape == BridgeNotifyShape.VendorWrapped)
                 {
-                    throw new InvalidOperationException(HealthCodes.UpstreamBlocked);
+                    if (wrappedVendorValidation?.Record is null)
+                    {
+                        throw new InvalidOperationException(HealthCodes.UpstreamBlocked);
+                    }
+
+                    desired = wrappedVendorValidation.Record.Argv;
+                }
+                else
+                {
+                    var upstream = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, protector).Load();
+                    var validation = vendorValidator.ValidateCaptured(upstream);
+                    if (!validation.IsValid)
+                    {
+                        throw new InvalidOperationException(HealthCodes.UpstreamBlocked);
+                    }
+
+                    desired = upstream.Kind == UpstreamKind.Absent ? null : upstream.Argv;
                 }
 
-                var desired = upstream.Kind == UpstreamKind.Absent ? null : upstream.Argv;
                 var transaction = new ConfigFileTransaction(protector);
                 transaction.CreateBackup(configPath, configHash, backupPath, utcNow());
                 EnsureDesktopClosed();

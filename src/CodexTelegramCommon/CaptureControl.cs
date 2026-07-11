@@ -6,7 +6,9 @@ public sealed class CaptureControl(
     ISecretProtector protector,
     Action<string> signalWorker,
     Action startWorker,
-    Func<string>? currentSid = null)
+    Func<string>? currentSid = null,
+    VendorExecutableValidator? vendorValidator = null,
+    Func<DateTimeOffset>? utcNow = null)
 {
     public static CaptureControl CreateProduction(string bridgeExecutablePath) => new(
         new DpapiSecretProtector(),
@@ -43,8 +45,16 @@ public sealed class CaptureControl(
             throw new InvalidOperationException(HealthCodes.InstallAclBlocked);
         }
 
-        var notify = CodexConfigDocument.Parse(File.ReadAllBytes(Path.Combine(current.CodexHome, "config.toml"))).NotifyArgv;
-        if (notify is null || !InstallPlanner.IsExactBridgeArgv(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe")))
+        var configBytes = File.ReadAllBytes(Path.Combine(current.CodexHome, "config.toml"));
+        var notify = CodexConfigDocument.Parse(configBytes).NotifyArgv;
+        var match = BridgeNotifyCommand.Match(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"));
+        var notifyActive = match.Shape == BridgeNotifyShape.Direct ||
+                           match.Shape == BridgeNotifyShape.VendorWrapped &&
+                           (vendorValidator ?? VendorExecutableValidator.ForCurrentUser()).ValidateArgv(
+                               match.OuterVendorArgv ?? [],
+                               Hashing.Sha256Hex(configBytes),
+                               (utcNow ?? (() => DateTimeOffset.UtcNow))()).IsValid;
+        if (!notifyActive)
         {
             throw new InvalidOperationException(HealthCodes.ConfigConflict);
         }

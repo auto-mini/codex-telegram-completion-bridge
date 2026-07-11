@@ -123,6 +123,26 @@ public sealed class InstallApplierIntegrationTests
     }
 
     [Fact]
+    public void Upgrade_recognizes_and_preserves_vendor_wrapped_bridge()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        fixture.SetVendorWrappedBridge();
+
+        var (upgradePlan, upgradePlanPath) = fixture.CreateUpgradePlan("wrapped-v2");
+        Assert.Equal(NotifyClassification.HealthyBridge, upgradePlan.NotifyClassification);
+
+        var result = fixture.CreateApplier().Apply(upgradePlanPath);
+
+        Assert.True(result.WasUpgrade);
+        var notify = CodexConfigDocument.Parse(File.ReadAllBytes(fixture.ConfigPath)).NotifyArgv;
+        var match = BridgeNotifyCommand.Match(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"));
+        Assert.Equal(BridgeNotifyShape.VendorWrapped, match.Shape);
+        Assert.Equal([fixture.VendorPath, BridgeConstants.VendorArgument], match.OuterVendorArgv);
+    }
+
+    [Fact]
     public void Conditional_repair_adopts_refreshed_vendor_and_restores_bridge()
     {
         using var fixture = new ApplyFixture();
@@ -139,6 +159,25 @@ public sealed class InstallApplierIntegrationTests
         Assert.True(InstallPlanner.IsExactBridgeArgv(
             CodexConfigDocument.Parse(File.ReadAllBytes(fixture.ConfigPath)).NotifyArgv!,
             Path.Combine(layout.Bin, "CodexTelegramBridge.exe")));
+        var upstream = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, fixture.Protector).Load();
+        Assert.Equal(Hashing.Sha256File(fixture.VendorPath), upstream.ExecutableSha256);
+        Assert.False(new RuntimeConfigStore(layout.RuntimeConfigPath).Load().DeliveryPaused);
+        Assert.False(File.Exists(layout.ActiveJournalPath));
+    }
+
+    [Fact]
+    public void Conditional_repair_refreshes_wrapped_vendor_without_rewriting_config()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        File.WriteAllText(fixture.VendorPath, "vendor-v2");
+        var wrapped = fixture.SetVendorWrappedBridge();
+
+        var result = fixture.CreateRepairService().Run(layout);
+
+        Assert.Equal(RepairOutcome.Repaired, result.Outcome);
+        Assert.Equal(wrapped, File.ReadAllBytes(fixture.ConfigPath));
         var upstream = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, fixture.Protector).Load();
         Assert.Equal(Hashing.Sha256File(fixture.VendorPath), upstream.ExecutableSha256);
         Assert.False(new RuntimeConfigStore(layout.RuntimeConfigPath).Load().DeliveryPaused);
@@ -217,6 +256,22 @@ public sealed class InstallApplierIntegrationTests
     }
 
     [Fact]
+    public void Uninstall_removes_nested_bridge_from_vendor_wrapper()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        fixture.SetVendorWrappedBridge();
+
+        var result = fixture.CreateUninstallService().Run(layout, keepConfigConflict: false, purgeState: false);
+
+        Assert.Equal(UninstallOutcome.CleanupRequired, result.Outcome);
+        Assert.Equal(
+            [fixture.VendorPath, BridgeConstants.VendorArgument],
+            CodexConfigDocument.Parse(File.ReadAllBytes(fixture.ConfigPath)).NotifyArgv);
+    }
+
+    [Fact]
     public void Uninstall_restores_absent_notify_without_fabricating_handler()
     {
         using var fixture = new ApplyFixture();
@@ -255,6 +310,25 @@ public sealed class InstallApplierIntegrationTests
         Assert.Equal(UninstallOutcome.CleanupRequired, allowed.Outcome);
         Assert.Equal(custom, File.ReadAllBytes(fixture.ConfigPath));
         Assert.False(fixture.Tasks.Staged);
+    }
+
+    [Fact]
+    public void Uninstall_never_leaves_bridge_referenced_by_unsupported_wrapper()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        var bridge = Path.Combine(layout.Bin, "CodexTelegramBridge.exe");
+        var previous = System.Text.Json.JsonSerializer.Serialize(new[] { bridge, "hook" });
+        var unsupported = CodexConfigDocument.Parse(File.ReadAllBytes(fixture.ConfigPath)).RenderWithNotify(
+            [fixture.VendorPath, BridgeConstants.VendorArgument, "--unsupported", previous]);
+        File.WriteAllBytes(fixture.ConfigPath, unsupported);
+
+        var result = fixture.CreateUninstallService().Run(layout, keepConfigConflict: true, purgeState: false);
+
+        Assert.Equal(UninstallOutcome.Conflict, result.Outcome);
+        Assert.Equal(unsupported, File.ReadAllBytes(fixture.ConfigPath));
+        Assert.True(fixture.Tasks.Enabled);
     }
 
     [Fact]
@@ -299,6 +373,78 @@ public sealed class InstallApplierIntegrationTests
         Assert.Empty(report.Conditions);
         Assert.DoesNotContain("must-never-appear", json, StringComparison.Ordinal);
         Assert.DoesNotContain(fixture.VendorPath, json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Doctor_accepts_verified_vendor_wrapped_bridge()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        fixture.SetVendorWrappedBridge();
+        var service = new DoctorService(
+            fixture.Protector,
+            new VendorExecutableValidator(fixture.VendorRoot),
+            fixture.Tasks,
+            _ => throw new InvalidOperationException("Online client should not be created."),
+            () => DateTimeOffset.UtcNow,
+            () => CurrentUserContext.Sid,
+            () => fixture.CodexHome);
+
+        var report = await service.RunAsync(layout, online: false, CancellationToken.None);
+
+        Assert.Equal("OK", report.Overall);
+        Assert.Empty(report.Conditions);
+        Assert.Equal("BRIDGE_ACTIVE_WRAPPED", report.Checks["codex_notify"]);
+    }
+
+    [Fact]
+    public async Task Planner_and_doctor_reject_wrapped_bridge_with_untrusted_outer_vendor()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        var outside = Path.Combine(Path.GetDirectoryName(fixture.VendorRoot)!, "outside-vendor", BridgeConstants.VendorExecutableName);
+        Directory.CreateDirectory(Path.GetDirectoryName(outside)!);
+        File.WriteAllText(outside, "untrusted");
+        fixture.SetVendorWrappedBridge(outside);
+
+        var (upgradePlan, _) = fixture.CreateUpgradePlan("untrusted-wrapper");
+        var service = new DoctorService(
+            fixture.Protector,
+            new VendorExecutableValidator(fixture.VendorRoot),
+            fixture.Tasks,
+            _ => throw new InvalidOperationException(),
+            () => DateTimeOffset.UtcNow,
+            () => CurrentUserContext.Sid,
+            () => fixture.CodexHome);
+        var report = await service.RunAsync(layout, online: false, CancellationToken.None);
+
+        Assert.Equal(NotifyClassification.Conflict, upgradePlan.NotifyClassification);
+        Assert.Equal("CONFIG_CONFLICT", report.Checks["codex_notify"]);
+        Assert.Contains(HealthCodes.ConfigConflict, report.Conditions);
+    }
+
+    [Fact]
+    public void Live_gate_accepts_verified_vendor_wrapped_bridge()
+    {
+        using var fixture = new ApplyFixture();
+        fixture.CreateApplier().Apply(fixture.PlanPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        fixture.SetVendorWrappedBridge();
+        new ProtectedJsonStore<TelegramCredentials>(layout.TelegramCredentialsPath, fixture.Protector)
+            .Save(new TelegramCredentials(BridgeConstants.SchemaVersion, "123:test", 42, 777, "private"));
+        var control = new CaptureControl(
+            fixture.Protector,
+            _ => { },
+            () => { },
+            () => CurrentUserContext.Sid,
+            new VendorExecutableValidator(fixture.VendorRoot),
+            () => DateTimeOffset.UtcNow);
+
+        control.EnableLive(layout);
+
+        Assert.Equal(CaptureMode.Live, new RuntimeConfigStore(layout.RuntimeConfigPath).Load().CaptureMode);
     }
 
     [Fact]
@@ -418,6 +564,17 @@ public sealed class InstallApplierIntegrationTests
             processes ?? (() => RunningProcesses),
             _ => { },
             (_, _, _) => true);
+
+        public byte[] SetVendorWrappedBridge(string? outerVendorPath = null)
+        {
+            var layout = new InstallationLayout(InstallRoot);
+            var bridge = Path.Combine(layout.Bin, "CodexTelegramBridge.exe");
+            var previous = System.Text.Json.JsonSerializer.Serialize(new[] { bridge, "hook" });
+            var wrapped = CodexConfigDocument.Parse(File.ReadAllBytes(ConfigPath)).RenderWithNotify(
+                [outerVendorPath ?? VendorPath, BridgeConstants.VendorArgument, BridgeConstants.VendorPreviousNotifyArgument, previous]);
+            File.WriteAllBytes(ConfigPath, wrapped);
+            return wrapped;
+        }
 
         public (InstallPlan Plan, string Path) CreateUpgradePlan(string suffix)
         {

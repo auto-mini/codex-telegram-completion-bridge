@@ -108,14 +108,23 @@ Read-only inspection on 2026-07-11 established:
 
 The preflight is point-in-time evidence only. The installer reruns equivalent checks on every PC.
 
+### 4.5 Post-install restart evidence
+
+Read-only inspection after the first shadow install and desktop restart on 2026-07-12 established that the current Computer Use runtime composes an existing notifier instead of discarding it. It rewrites the top-level argv to the exact four-element shape `codex-computer-use.exe`, `turn-ended`, `--previous-notify`, and a JSON string containing the prior `[CodexTelegramBridge.exe, hook]` argv. A shadow completion was captured through that nested command. Binary strings also identify `--previous-notify` as the Computer Use previous-notify hook.
+
+This observed composition is now a supported, narrowly validated active state. It is not generalized into support for arbitrary nested handlers.
+
 ## 5. Chosen architecture
 
 ```mermaid
 flowchart LR
     A["PC app or Android Remote"] --> B["Host Codex turn"]
     B --> C["User-global notify slot"]
-    C --> D["CodexTelegramBridge hook mode"]
-    D --> E["Preserved upstream notify argv"]
+    C --> M{"Verified notify shape"}
+    M -->|direct bridge| D["CodexTelegramBridge hook mode"]
+    M -->|Computer Use wrapper| E["Computer Use notifier"]
+    E --> D
+    D -->|direct shape only| U["Preserved upstream notify argv"]
     D --> F["Transactional minimal event state"]
     F --> G["Single-instance worker"]
     G --> H["Read-only root/title resolver"]
@@ -125,7 +134,7 @@ flowchart LR
     H -->|unknown| K["Quarantine"]
 ```
 
-The single Codex `notify` command is replaced by a transparent fan-out bridge. In v1, the only supported pre-existing handler is the recognized `codex-computer-use.exe turn-ended` vendor shape; its exact captured argv is preserved and the original Codex JSON payload is appended as the final argument, matching Codex's notify contract. An absent handler is also supported. A generic or user-custom handler makes install apply fail closed with `CONFIG_CONFLICT` before any mutation, because arbitrary handler behavior cannot be promised transparent without a separate compatibility design.
+The single Codex `notify` command is initially replaced by a transparent fan-out bridge. In v1, the only supported pre-existing handler is the recognized `codex-computer-use.exe turn-ended` vendor shape; its exact captured argv is preserved and the original Codex JSON payload is appended as the final argument, matching Codex's notify contract. After desktop startup, the verified Computer Use wrapper may instead be outermost and carry the exact bridge argv in its `--previous-notify` JSON argument. In that shape Computer Use has already handled the event, so the nested bridge captures the completion but deliberately does not launch its captured vendor upstream a second time. An absent handler is also supported. A generic, user-custom, malformed, extra-argument, or non-exact nested handler makes install or operation fail closed with `CONFIG_CONFLICT`.
 
 ## 6. Implementation technology and artifacts
 
@@ -449,37 +458,37 @@ Failure before config commit removes staged new artifacts and leaves Codex confi
 
 Use a TOML-aware scanner to locate the top-level `notify` assignment, including multiline string arrays and comments. Parse and validate the complete TOML before and after the surgical replacement; do not reserialize unrelated config. When `notify` is absent, insert the new top-level key before the first table header (or at end of a root-only document), never inside the currently open table.
 
-The installed value is the exact argv for `CodexTelegramBridge.exe hook`. Before replacement:
+The initial installed value is the exact argv for `CodexTelegramBridge.exe hook`. The other supported active value is the exact verified four-element Computer Use wrapper described in section 4.5. Its nested JSON must decode to exactly the manifest-verified absolute bridge path and `hook`; the outer two argv elements must independently pass the recognized-vendor final-path and hash predicate. No other nesting is accepted. Before replacement:
 
 - write a timestamped DPAPI-encrypted full config backup under a bridge backup directory whose ACL is limited to the current user and `SYSTEM`;
 - record the original notify source span and parsed argv;
 - flush the temporary file;
 - atomically replace the original while preserving encoding, newline style, and ACLs.
 
-If `notify` is absent, upstream state records `kind: absent`, and uninstall removes the bridge assignment instead of restoring a fabricated handler. “Already the bridge” requires exactly two argv elements—the manifest-verified expected absolute `CodexTelegramBridge.exe` path and `hook`—plus matching installation identity, user SID, completed journal record, decryptable upstream state, and valid database schema. Only that state is idempotent. Any other bridge-like path, extra argument, missing/corrupt identity, or self-reference becomes `CONFIG_CONFLICT` and is never captured as upstream.
+If `notify` is absent, upstream state records `kind: absent`, and uninstall removes the bridge assignment instead of restoring a fabricated handler. “Already active” requires either the exact two-element direct bridge argv or the exact verified four-element Computer Use wrapper, plus matching installation identity, user SID, completed journal record, decryptable upstream state, and valid database schema. Only those two shapes are idempotent. Any other bridge-like path, malformed nested JSON, extra argument, missing/corrupt identity, or self-reference becomes `CONFIG_CONFLICT` and is never captured as upstream.
 
-An in-place upgrade follows the same plan/apply journal, requires app closure and stopped tasks, sets delivery pause before replacement, backs up the bridge-state database before any schema migration, retains machine identity and all event rows, replaces binaries only after hash verification, and clears delivery pause only after config, state, tasks, and `doctor` are healthy. Downgrade is unsupported.
+An in-place upgrade follows the same plan/apply journal, requires app closure and stopped tasks, sets delivery pause before replacement, backs up the bridge-state database before any schema migration, retains machine identity and all event rows, replaces binaries only after hash verification, and preserves either supported active notify shape rather than flattening a verified Computer Use wrapper. It clears delivery pause only after config, state, tasks, and `doctor` are healthy. Downgrade is unsupported.
 
 ### 12.3 Conditional repair
 
 A scheduled repair check may modify config only when all of these are true:
 
 1. installation state says the bridge is active;
-2. current config is not the bridge;
-3. current `notify` satisfies the complete recognized vendor predicate in section 7.3;
+2. current config is either the plain recognized vendor shape or the verified Computer Use wrapper around the bridge;
+3. the current outer `notify` satisfies the complete recognized vendor predicate in section 7.3;
 4. no generic or user-custom handler is present;
 5. config hash remains unchanged between repair plan and atomic replace.
 6. Codex/ChatGPT desktop and app-server processes are not running.
 
-When allowed, repair serializes against install/upgrade, uses the same protected sibling journal and encrypted compare-before-swap backup discipline, and durably orders `REPAIR_PLANNED`, `UPSTREAM_CAPTURED`, `CONFIG_PENDING`, `CONFIG_COMMITTED`, and `COMMITTED`. It captures and verifies the new vendor upstream before the config swap, rechecks app/app-server absence immediately before and after that swap, and compensates to the verified backup if the process set or config hash changes. An unfinished repair journal is recovered before normal startup work. If the app is running, repair records `REPAIR_PENDING` and performs no write. Any other divergence becomes `CONFIG_CONFLICT`; it is logged and never overwritten automatically.
+When allowed, repair serializes against install/upgrade, uses the same protected sibling journal and encrypted compare-before-swap backup discipline, and durably orders `REPAIR_PLANNED`, `UPSTREAM_CAPTURED`, `CONFIG_PENDING`, `CONFIG_COMMITTED`, and `COMMITTED`. For the plain vendor shape it captures the new vendor and restores the direct bridge. For a verified wrapper it leaves `config.toml` byte-for-byte unchanged and only refreshes stale encrypted vendor state. It rechecks app/app-server absence immediately before and after any state change and compensates to the verified backup if the process set or config hash changes. A wrapper whose captured vendor already matches is healthy and may clear stale repair/config health while the app is running without rewriting config. An unfinished repair journal is recovered before normal startup work. Any other divergence becomes `CONFIG_CONFLICT`; it is logged and never overwritten automatically.
 
 ### 12.4 Upstream execution
 
-V1 executes only the recognized vendor upstream or no upstream. A generic/user-custom handler blocks installation and is never captured. For the recognized vendor, the bridge records executable SHA-256 at capture and refuses execution if DPAPI decryption fails, the process cannot start, the file disappears, or its hash changes in place; any of those cases sets `UPSTREAM_BLOCKED`. Automatic discovery and execution are forbidden because the currently observed vendor executable is not Authenticode-signed and multiple runtime candidates may exist. The bridge continues durable Telegram event handling while upstream is blocked. `doctor` may list redacted candidates only beneath `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node`; the user must run `CodexTelegramCtl upstream adopt <absolute-path>` after reviewing the candidate. Adoption verifies the exact filename and subtree, captures its SHA-256, encrypts the new argv, and requires a controlled upstream launch-contract test. General `PATH` search is forbidden.
+V1 executes only the recognized vendor upstream or no upstream. A generic/user-custom handler blocks installation and is never captured. For the recognized vendor, the bridge records executable SHA-256 at capture and refuses execution if DPAPI decryption fails, the process cannot start, the file disappears, or its hash changes in place; any of those cases sets `UPSTREAM_BLOCKED`. When the current config is the fully verified Computer Use wrapper, the bridge proves that outer shape from the current TOML and skips its own upstream launch because the outer vendor already ran; failure to prove the shape falls back to the captured-upstream path and surfaces the config fault. Automatic discovery and execution are forbidden because the currently observed vendor executable is not Authenticode-signed and multiple runtime candidates may exist. The bridge continues durable Telegram event handling while upstream is blocked. `doctor` may list redacted candidates only beneath `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node`; the user must run `CodexTelegramCtl upstream adopt <absolute-path>` after reviewing the candidate. Adoption verifies the exact filename and subtree, captures its SHA-256, encrypts the new argv, and requires a controlled upstream launch-contract test. General `PATH` search is forbidden.
 
 ### 12.5 Uninstall
 
-Uninstall restores the most recent captured upstream only if current config still points exactly to the installed bridge. If the config diverged, uninstall removes no config and reports a conflict with manual recovery instructions. It removes scheduled tasks and binaries only after config restoration succeeds, or after it positively proves that the divergent config no longer references any bridge executable and the user explicitly chooses `--keep-config-conflict`. Mutable event state is retained by default and requires a separate `--purge-state` confirmation.
+Uninstall restores the most recent captured upstream when current config points directly to the installed bridge. When current config is the verified Computer Use wrapper, uninstall removes exactly the `--previous-notify` bridge nesting and leaves the validated outer vendor argv. If the config diverged, uninstall removes no config and reports a conflict with manual recovery instructions. It removes scheduled tasks and binaries only after config restoration succeeds, or after it positively proves that the divergent config no longer references any bridge executable and the user explicitly chooses `--keep-config-conflict`. Unsupported nested strings are scanned fail-closed so removal can never leave a dangling bridge executable reference. Mutable event state is retained by default and requires a separate `--purge-state` confirmation.
 
 If the base config file did not exist before installation, uninstall removes it only when the parsed post-restoration file contains no setting other than bridge-created content; otherwise it removes only the bridge assignment. Backups and retained machine identity are kept until the user explicitly requests purge. A reinstall without purge reuses the retained machine GUID and deduplication database; a purged reinstall generates a new identity.
 
@@ -535,7 +544,8 @@ Logs contain UTC timestamp, severity, stable event-id prefix, operation code, re
 | Installation owner/DACL diverges | `INSTALL_ACL_BLOCKED`; no network send or automatic config repair | Restore expected ACL and rerun doctor |
 | Existing upstream is not invoked | Roll back config immediately | Canary fails |
 | Captured vendor upstream disappears | `UPSTREAM_BLOCKED`; no automatic executable adoption | User-reviewed adopt and controlled test |
-| App restart or simulated vendor refresh replaces bridge with recognized vendor handler | Conditional repair and re-test | Canary clock restarts |
+| App restart wraps the bridge with exact Computer Use `--previous-notify` composition | Accept as active, suppress duplicate upstream launch, and re-test | Continue canary after one-count verification |
+| Simulated vendor refresh replaces bridge with plain recognized vendor handler | Conditional repair and re-test | Canary clock restarts |
 | Arbitrary config handler replaces bridge | `CONFIG_CONFLICT`, no auto-write | User review required |
 | Telegram unavailable | Persistent retry | No event deletion |
 | Telegram token revoked/blocked | `AUTH_BLOCKED` | Reconfigure token and explicit resume |
@@ -581,7 +591,7 @@ If no supported trust UI is available, another Stop handler exists, or any early
 - Mutex and stale-inflight recovery
 - Named-event wakeup races, missed-signal recovery, idle exit, paused/blocked exit, and immediate wake on new work/resume
 - Persistent health-condition transactions, restart survival, deterministic clearing, and derived local-state/ACL conditions
-- Conditional vendor repair and generic-config conflict
+- Direct/wrapped bridge shape parsing, strict nested JSON rejection, duplicate-upstream suppression, conditional vendor repair, and generic-config conflict
 - Exact self-bridge identity/idempotency predicate and bridge-like conflict rejection
 - Safe uninstall and idempotent reinstall
 - Shadow/live capture transitions, independent delivery pause/resume, and proof that shadow rows never send

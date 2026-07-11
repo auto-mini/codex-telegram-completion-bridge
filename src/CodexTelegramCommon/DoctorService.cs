@@ -104,11 +104,22 @@ public sealed class DoctorService(
             }
 
             var configPath = Path.Combine(runtime.CodexHome, "config.toml");
-            var notify = CodexConfigDocument.Parse(File.ReadAllBytes(configPath)).NotifyArgv;
-            checks["codex_notify"] = notify is not null && InstallPlanner.IsExactBridgeArgv(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"))
-                ? "BRIDGE_ACTIVE"
+            var configBytes = File.ReadAllBytes(configPath);
+            var notify = CodexConfigDocument.Parse(configBytes).NotifyArgv;
+            var match = BridgeNotifyCommand.Match(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"));
+            var notifyActive = match.Shape == BridgeNotifyShape.Direct;
+            if (match.Shape == BridgeNotifyShape.VendorWrapped)
+            {
+                notifyActive = vendorValidator.ValidateArgv(
+                    match.OuterVendorArgv ?? [],
+                    Hashing.Sha256Hex(configBytes),
+                    utcNow()).IsValid;
+            }
+
+            checks["codex_notify"] = notifyActive
+                ? match.Shape == BridgeNotifyShape.VendorWrapped ? "BRIDGE_ACTIVE_WRAPPED" : "BRIDGE_ACTIVE"
                 : "CONFIG_CONFLICT";
-            if (!string.Equals(checks["codex_notify"], "BRIDGE_ACTIVE", StringComparison.Ordinal))
+            if (!notifyActive)
             {
                 conditions.Add(HealthCodes.ConfigConflict);
             }

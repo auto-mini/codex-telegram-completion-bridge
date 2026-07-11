@@ -1,8 +1,10 @@
 using CodexTelegramCommon;
 using System.Text;
+using System.Text.Json;
 
 namespace CodexTelegramIntegrationTests;
 
+[Collection("Process environment")]
 public sealed class HookHandlerIntegrationTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "HookHandlerTests", Guid.NewGuid().ToString("N"));
@@ -59,6 +61,49 @@ public sealed class HookHandlerIntegrationTests : IDisposable
         Assert.Equal(1, new EmergencySpool(layout.SpoolDirectory).CountPending());
     }
 
+    [Fact]
+    public async Task Vendor_wrapped_bridge_does_not_launch_captured_vendor_a_second_time()
+    {
+        var layout = PrepareLayout();
+        var vendorDirectory = Path.Combine(root, "vendor");
+        Directory.CreateDirectory(vendorDirectory);
+        var vendor = Path.Combine(vendorDirectory, BridgeConstants.VendorExecutableName);
+        File.Copy(LocateTestVendor(), vendor);
+        var validator = new VendorExecutableValidator(root);
+        var captured = validator.ValidateArgv(
+            [vendor, BridgeConstants.VendorArgument],
+            new string('a', 64),
+            DateTimeOffset.UtcNow);
+        Assert.True(captured.IsValid);
+        new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, new ReversingProtector()).Save(captured.Record!);
+
+        var runtime = new RuntimeConfigStore(layout.RuntimeConfigPath).Load();
+        Directory.CreateDirectory(runtime.CodexHome);
+        var bridge = Path.Combine(layout.Bin, "CodexTelegramBridge.exe");
+        var previous = JsonSerializer.Serialize(new[] { bridge, "hook" });
+        File.WriteAllBytes(
+            Path.Combine(runtime.CodexHome, "config.toml"),
+            CodexConfigDocument.Parse([]).RenderWithNotify(
+                [vendor, BridgeConstants.VendorArgument, BridgeConstants.VendorPreviousNotifyArgument, previous]));
+
+        var output = Path.Combine(root, "unexpected-vendor-observation.json");
+        var previousOutput = Environment.GetEnvironmentVariable("CODEX_TELEGRAM_TEST_VENDOR_OUTPUT");
+        try
+        {
+            Environment.SetEnvironmentVariable("CODEX_TELEGRAM_TEST_VENDOR_OUTPUT", output);
+            var handler = new HookHandler(new ReversingProtector(), validator, _ => { }, _ => { });
+
+            handler.Handle(layout, "{\"type\":\"other\"}");
+            await Task.Delay(500);
+
+            Assert.False(File.Exists(output));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CODEX_TELEGRAM_TEST_VENDOR_OUTPUT", previousOutput);
+        }
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
@@ -89,6 +134,20 @@ public sealed class HookHandlerIntegrationTests : IDisposable
             new string('0', 64),
             UpstreamKind.Absent));
         return layout;
+    }
+
+    private static string LocateTestVendor()
+    {
+        var configuration = AppContext.BaseDirectory.Contains(
+            $"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Release"
+            : "Debug";
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "TestVendor", "bin", configuration, "net8.0-windows", BridgeConstants.VendorExecutableName));
+        Assert.True(File.Exists(path), $"Test vendor was not built: {path}");
+        return path;
     }
 
     private sealed class ReversingProtector : ISecretProtector

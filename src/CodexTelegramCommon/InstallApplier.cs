@@ -226,7 +226,12 @@ public sealed class InstallApplier(
             EnsureDesktopClosed();
             EnsureConfigHash(plan.ConfigPath, plan.ConfigSha256);
             Advance("CONFIG_PENDING");
-            configEdit = configTransaction.ReplaceNotify(plan.ConfigPath, plan.ConfigSha256, [plan.BridgeExecutablePath, "hook"]);
+            configEdit = plan.NotifyClassification == NotifyClassification.HealthyBridge
+                ? configTransaction.ReplaceNotifyValue(
+                    plan.ConfigPath,
+                    plan.ConfigSha256,
+                    document.NotifyArgv ?? throw new InvalidDataException("Active bridge notify is missing."))
+                : configTransaction.ReplaceNotify(plan.ConfigPath, plan.ConfigSha256, [plan.BridgeExecutablePath, "hook"]);
             configCommitted = true;
             EnsureDesktopClosed();
             Advance("CONFIG_COMMITTED", configEdit.AfterSha256);
@@ -363,7 +368,7 @@ public sealed class InstallApplier(
             {
                 var notify = CodexConfigDocument.Parse(configBytes).NotifyArgv;
                 var expectedBridge = Path.Combine(layout.Bin, "CodexTelegramBridge.exe");
-                if (notify is not null && InstallPlanner.IsExactBridgeArgv(notify, expectedBridge))
+                if (IsActiveBridgeNotify(notify, expectedBridge, currentHash))
                 {
                     new ConfigFileTransaction(protector).RestoreBackup(journal.BackupPath, currentHash);
                 }
@@ -407,7 +412,7 @@ public sealed class InstallApplier(
         File.Delete(layout.ActiveJournalPath);
     }
 
-    private static bool IsStillHealthyActiveInstallation(InstallationLayout layout)
+    private bool IsStillHealthyActiveInstallation(InstallationLayout layout)
     {
         try
         {
@@ -415,10 +420,11 @@ public sealed class InstallApplier(
                          ?? throw new InvalidDataException("Installation record is empty.");
             record.Validate();
             var runtime = new RuntimeConfigStore(layout.RuntimeConfigPath).Load();
-            var notify = CodexConfigDocument.Parse(File.ReadAllBytes(Path.Combine(runtime.CodexHome, "config.toml"))).NotifyArgv;
+            var configBytes = File.ReadAllBytes(Path.Combine(runtime.CodexHome, "config.toml"));
+            var notify = CodexConfigDocument.Parse(configBytes).NotifyArgv;
             var manifest = PackageManifest.LoadAndVerify(layout.Root, allowInstalledMutableFiles: true);
             return record.State == InstallationState.Active &&
-                   notify is not null && InstallPlanner.IsExactBridgeArgv(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe")) &&
+                   IsActiveBridgeNotify(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe"), Hashing.Sha256Hex(configBytes)) &&
                    string.Equals(record.ManifestSha256, manifest.ManifestSha256, StringComparison.Ordinal);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
@@ -495,6 +501,18 @@ public sealed class InstallApplier(
 
         if (plan.NotifyClassification == NotifyClassification.HealthyBridge)
         {
+            var match = BridgeNotifyCommand.Match(currentNotify, plan.BridgeExecutablePath);
+            if (match.Shape == BridgeNotifyShape.VendorWrapped)
+            {
+                var currentVendor = vendorValidator.ValidateArgv(match.OuterVendorArgv ?? [], plan.ConfigSha256, utcNow());
+                if (!currentVendor.IsValid || currentVendor.Record is null)
+                {
+                    throw new InvalidOperationException("CONFIG_CONFLICT");
+                }
+
+                return currentVendor.Record;
+            }
+
             var retained = new ProtectedJsonStore<UpstreamRecord>(new InstallationLayout(plan.InstallationRoot).UpstreamPath, protector).Load();
             retained.ValidateShape();
             return retained;
@@ -507,6 +525,14 @@ public sealed class InstallApplier(
         }
 
         return validation.Record;
+    }
+
+    private bool IsActiveBridgeNotify(IReadOnlyList<string>? notify, string expectedBridge, string configHash)
+    {
+        var match = BridgeNotifyCommand.Match(notify, expectedBridge);
+        return match.Shape == BridgeNotifyShape.Direct ||
+               match.Shape == BridgeNotifyShape.VendorWrapped &&
+               vendorValidator.ValidateArgv(match.OuterVendorArgv ?? [], configHash, utcNow()).IsValid;
     }
 
     private bool TryRollback(

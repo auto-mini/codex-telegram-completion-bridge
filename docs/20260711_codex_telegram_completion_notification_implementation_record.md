@@ -2,9 +2,9 @@
 
 ## Build identity
 
-- Date: 2026-07-11 (Asia/Seoul)
+- Date: 2026-07-12 (Asia/Seoul)
 - Branch: `codex/telegram-completion-bridge`
-- Frozen blueprint SHA-256: `96bb6cd8c934c494ffd55642fb26cd3b8f73193a3775c1995778a98b8fa52b8a`
+- Revised blueprint SHA-256: `059a01a1ba1194f691231c90fbc310460e337b4eb9f1ec04fe8e412e0c52ab68`
 - Implementation commits:
   - `1b4f35f` — secure event, queue, resolver, Telegram, and DPAPI core
   - `38407e5` — durable hook/worker pipeline and upstream launch contract
@@ -18,9 +18,9 @@
 
 - Clean locked restore: PASS
 - Release build with warnings as errors: PASS, 0 warnings
-- Unit tests: 65/65 PASS
-- Integration tests: 72/72 PASS
-- Total automated tests: 137/137 PASS
+- Unit tests: 73/73 PASS
+- Integration tests: 80/80 PASS
+- Total automated tests: 153/153 PASS
 - Real current-user Task Scheduler create/disable/enable/query/remove test: PASS
 - Actual console-subsystem upstream contract test: PASS
   - exact argv and original synthetic payload
@@ -29,16 +29,24 @@
   - no console window
 - Source formatting verification: PASS
 - Read-only current-PC install plan: PASS
-  - current handler classified as recognized vendor
+  - initial handler classified as recognized vendor
   - plan applicable
   - `config.toml` SHA-256 unchanged
   - no installation root, task, credential, or bridge state created
+- First current-PC shadow apply: PASS
+  - transactional apply completed with exit code 0
+  - installation ACL, manifest, state database, and both scheduled tasks verified
+- Post-restart Computer Use composition observation: PASS
+  - exact four-element `turn-ended --previous-notify` wrapper observed
+  - nested bridge captured one shadow completion
+  - revised doctor reports `BRIDGE_ACTIVE_WRAPPED`
+  - canary.7 upgrade plan classifies the live wrapper as `healthy_bridge`
 
 ## Canary package
 
-- Release: `CodexTelegramBridge-1.0.0-canary.4-win-x64`
-- `manifest.sha256` outer SHA-256: `8c07fb071db6b885704a5f25546de2df14e50caf3e6f248a2ff0e35767fb6f99`
-- Rebuild reproducibility check: PASS — canary.3 and canary.4 produced the same outer manifest hash.
+- Release: `CodexTelegramBridge-1.0.0-canary.7-win-x64`
+- `manifest.sha256` outer SHA-256: `7f70acc433f1786385c09487829f35b3a10d340e40311d43be82d7ad9fe90f5c`
+- Rebuild reproducibility check: PASS — canary.6 and canary.7 produced the same outer manifest hash.
 - Package contents are fully covered by the inner manifest; unlisted immutable artifacts fail verification.
 - The sibling outer-hash record must be retained separately from the release directory.
 
@@ -46,6 +54,8 @@
 
 - Completion payload persists only opaque IDs, timestamps, mode, and encrypted delivery envelopes.
 - Existing `codex-computer-use.exe turn-ended` is captured under the fixed final-path predicate and invoked independently of Telegram capture success.
+- The exact verified Computer Use `--previous-notify` wrapper is accepted as an active bridge shape; nested bridge execution suppresses a second vendor launch.
+- Malformed, oversized, extra-argument, untrusted-root, and unsupported nested bridge shapes fail closed, including uninstall dangling-reference checks.
 - Hook mode performs no network I/O.
 - SQLite deduplication, emergency spool, leases, independent resolution/delivery retries, persistent health gates, retention, and corruption markers are implemented.
 - Bot token and selected bot/chat generation are committed as one DPAPI CurrentUser blob.
@@ -60,8 +70,9 @@
 |---|---|
 | Implementation and automated verification | PASS |
 | Package and read-only current-PC plan | PASS |
-| Current-PC shadow apply | PENDING — requires desktop/app-server closure |
-| Three local root shadow observations | PENDING |
+| Current-PC shadow apply | PASS |
+| Post-restart Computer Use wrapper compatibility | PASS — corrected canary upgrade queued |
+| Three local root shadow observations | IN PROGRESS — 1/3 observed |
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PENDING |
