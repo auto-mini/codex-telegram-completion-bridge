@@ -2,6 +2,8 @@
 
 Windows sidecar that preserves the existing Codex Computer Use notifier and sends completion-only Telegram messages for user-visible root tasks.
 
+Telegram messages show at most the first 32 Unicode grapheme clusters of a task title followed by `…`; short titles are unchanged. The longer normalized title remains only in the local encrypted envelope for identity verification and is never written to operational logs.
+
 The frozen architecture and rollout gates are in [`docs/20260711_codex_telegram_completion_notification_blueprint.md`](docs/20260711_codex_telegram_completion_notification_blueprint.md).
 
 ## Development

@@ -26,6 +26,29 @@ public sealed class TextNormalizerTests
     }
 
     [Fact]
+    public void Telegram_rendering_truncates_only_the_display_title_by_grapheme()
+    {
+        const string family = "👨‍👩‍👧‍👦";
+        var fullTitle = string.Concat(Enumerable.Repeat(family, BridgeConstants.MaxTelegramTitleGraphemes + 3));
+        var normalized = TextNormalizer.NormalizeTitle(fullTitle)!;
+
+        var message = TextNormalizer.RenderCompletion("Test PC", normalized);
+        var displayedTitle = message.Split('\n')[2]["스레드: ".Length..];
+
+        Assert.Equal(BridgeConstants.MaxTelegramTitleGraphemes + 1, System.Globalization.StringInfo.ParseCombiningCharacters(displayedTitle).Length);
+        Assert.EndsWith("…", displayedTitle, StringComparison.Ordinal);
+        Assert.Equal(fullTitle, normalized);
+    }
+
+    [Fact]
+    public void Telegram_rendering_leaves_short_title_unchanged()
+    {
+        const string title = "짧은 작업 제목";
+
+        Assert.EndsWith("스레드: " + title, TextNormalizer.RenderCompletion("Test PC", title), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Truncates_by_grapheme_and_adds_one_ellipsis()
     {
         var value = string.Concat(Enumerable.Repeat("가", BridgeConstants.MaxTitleGraphemes + 10));

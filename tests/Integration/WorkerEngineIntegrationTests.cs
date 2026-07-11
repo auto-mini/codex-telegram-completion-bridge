@@ -64,6 +64,25 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Long_live_title_is_full_in_encrypted_envelope_but_short_in_telegram()
+    {
+        var fullTitle = string.Concat(Enumerable.Repeat("가", BridgeConstants.MaxTelegramTitleGraphemes + 5));
+        var fixture = CreateFixture(CaptureMode.Live, new StateResolution(ResolutionKind.RootReady, fullTitle));
+        fixture.SaveCredentials();
+        var item = fixture.Enqueue();
+
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+
+        var sent = Assert.Single(fixture.Telegram.SentTexts);
+        var displayedTitle = sent.Split('\n')[2]["스레드: ".Length..];
+        Assert.Equal(new string('가', BridgeConstants.MaxTelegramTitleGraphemes) + "…", displayedTitle);
+        var protectedEnvelope = fixture.Queue.GetEvent(item.EventId)!.DeliveryEnvelopeDpapi!;
+        var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(protectedEnvelope, protector);
+        Assert.Equal(fullTitle, envelope.ThreadTitle);
+        Assert.Equal(sent, envelope.TelegramText);
+    }
+
+    [Fact]
     public async Task Retry_reuses_encrypted_envelope_after_title_and_pc_change()
     {
         var fixture = CreateFixture(CaptureMode.Live, new StateResolution(ResolutionKind.RootReady, "Original title"));

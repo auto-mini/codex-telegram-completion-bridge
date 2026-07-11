@@ -18,10 +18,10 @@ Runtime message shape is fixed:
 ```text
 ✅ Codex 응답 완료
 PC: <current Windows computer name or configured alias>
-스레드: <current Codex thread title>
+스레드: <first 32 grapheme clusters of current Codex thread title, plus … when truncated>
 ```
 
-No summary, prompt, response body, working directory, model, status detail, or timestamp is sent.
+No summary, prompt, response body, working directory, model, status detail, timestamp, or title text beyond that display prefix is sent.
 
 ## 2. Sealed requirements
 
@@ -33,7 +33,7 @@ These decisions are closed and must not be reopened during implementation unless
 4. Exclude internal subagent and guardian/reviewer completions.
 5. A normal turn that reports inability, partial completion, or asks the user to clarify still generates a notification.
 6. A cancelled, interrupted, or error-terminated turn does not generate a notification.
-7. Runtime Telegram text contains only the fixed completion line, PC name, and thread title.
+7. Runtime Telegram text contains only the fixed completion line, PC name, and the first 32 grapheme clusters of the thread title plus one ellipsis when truncated.
 8. Use one Telegram bot and one private 1:1 bot chat for all PCs.
 9. Validate on the current PC first. Do not deploy to another PC until the current-PC canary gate passes.
 10. Existing Codex/Computer Use notification behavior must be preserved.
@@ -270,7 +270,7 @@ The recognized vendor predicate is shared by install, repair, doctor, adoption, 
 
 The install plan resolves `CODEX_HOME` once and apply persists that absolute path. A later environment/config change that points Codex elsewhere becomes `CODEX_HOME_CONFLICT` and requires a new install plan; the bridge never silently follows a new home.
 
-`capture_mode` is exactly `shadow` or `live` and is snapshotted into every event. Shadow root events become `shadow` and are never replayed when switching to live. `delivery_paused` is an independent global network gate: while true, live events remain pending; an explicit resume sets it false and those pending live events become eligible without mutating `ingest_mode`. Rollback never resumes them automatically. Every runtime-config write uses same-directory temporary write, flush, compare-before-swap, schema validation, and atomic replacement. The mutex name, PC-name limit of 64 grapheme clusters, title limit of 160 grapheme clusters, retry limits, and v1 legacy root allowlist are derived immutable constants, not user-editable configuration. The mutex includes the machine GUID and current user SID hash.
+`capture_mode` is exactly `shadow` or `live` and is snapshotted into every event. Shadow root events become `shadow` and are never replayed when switching to live. `delivery_paused` is an independent global network gate: while true, live events remain pending; an explicit resume sets it false and those pending live events become eligible without mutating `ingest_mode`. Rollback never resumes them automatically. Every runtime-config write uses same-directory temporary write, flush, compare-before-swap, schema validation, and atomic replacement. The mutex name, PC-name limit of 64 grapheme clusters, local title limit of 160 grapheme clusters, Telegram title-display limit of 32 grapheme clusters, retry limits, and v1 legacy root allowlist are derived immutable constants, not user-editable configuration. The mutex includes the machine GUID and current user SID hash.
 
 ### 7.5 Telegram credentials
 
@@ -335,6 +335,8 @@ If a canary exposes a new scalar source, the implementer may not accept it autom
 - Replace every Unicode whitespace character, C0/C1 control, and bidi control (`U+061C`, `U+200E-U+200F`, `U+202A-U+202E`, `U+2066-U+2069`) with one ordinary space; preserve valid emoji joiners such as ZWJ.
 - Collapse resulting space runs and trim.
 - Limit to 160 Unicode grapheme clusters and append one ellipsis if truncated.
+- Retain that normalized value only inside the local DPAPI-encrypted delivery envelope for identity verification and retry stability.
+- In the Telegram text, display at most its first 32 Unicode grapheme clusters and append one ellipsis if truncated; short titles are unchanged.
 - Send Telegram text without `parse_mode`.
 
 Title/state resolution retries inline at 0, 0.5, 1, 2, 4, 8, and 15 seconds. Every `not-ready` result transactionally releases the inflight lease and increments only `resolution_attempt_count`. After the inline sequence, the durable scheduler sets `next_attempt_at_utc` using delays of 30, 60, 120, and 300 seconds, then every five minutes until the 24-hour quarantine boundary. Delivery attempts increment only `delivery_attempt_count`; resolution retries never consume the Telegram retry schedule. Missing-title events are not discarded.
@@ -418,7 +420,7 @@ Shared-token rotation is coordinated: set `delivery_paused=true` on every reacha
 
 Normal reconfiguration requires `getMe.id` to match the stored bot user ID. Replacing a deleted or intentionally changed bot is a separate coordinated migration: pause every PC, run the full private-chat challenge bootstrap on the canary, validate the new bot ID/chat and one labeled test on each other PC, atomically replace each local credential blob, then resume one PC at a time. No PC accepts a silent bot-identity change.
 
-Telegram bot chats are cloud chats rather than Secret Chats. Only the requested PC name and thread title leave the PC. `protect_content` reduces casual forwarding/saving but does not provide end-to-end encryption.
+Telegram bot chats are cloud chats rather than Secret Chats. Only the requested PC name and the shortened thread-title display prefix leave the PC. `protect_content` reduces casual forwarding/saving but does not provide end-to-end encryption.
 
 Sources:
 
@@ -583,7 +585,7 @@ If no supported trust UI is available, another Stop handler exists, or any early
 - Encrypted recognized-vendor/absent upstream and config-backup round trips
 - State database discovery and schema-version fixtures, including busy/incompatible newer candidates above a stale older match
 - Root, subagent, contradictory, malformed, and unknown-source classification
-- Unicode title normalization, single line/paragraph separators, bidi controls, emoji ZWJ preservation, and grapheme truncation
+- Unicode title normalization, single line/paragraph separators, bidi controls, emoji ZWJ preservation, 160-grapheme local retention, and independent 32-grapheme Telegram display truncation
 - PC alias/computer-name normalization and exact three-line rendering
 - Telegram response parsing, redaction, per-PC 429 cooldown extension/restart survival, auth block, and retry schedule
 - Telegram bootstrap fixtures: stale/wrong challenge, expiry, private-chat requirement, webhook, concurrent update consumer, offset advancement, and no-write failure
@@ -735,7 +737,7 @@ Threats and controls:
 
 - Token theft at rest: DPAPI CurrentUser and restricted ACL protect against offline copying and other standard users, but malware already running as the installing user or an administrator can decrypt/inspect the token; that operating-system trust boundary is a documented residual risk.
 - Token leakage through logs/URLs: structured redaction and tests that scan artifacts.
-- Telegram-cloud exposure: send only PC name and title; document lack of Secret Chat E2EE.
+- Telegram-cloud exposure: send only PC name and the first 32 title graphemes plus an optional ellipsis; document lack of Secret Chat E2EE.
 - Command injection through title or payload: no shell composition and no Telegram parse mode.
 - Local process inspection: the original Codex notify contract already places the full payload in a process argument, and transparent upstream fan-out repeats that argument for the preserved handler. A local administrator can inspect those transient command lines; v1 cannot remove this exposure without breaking compatibility.
 - Malicious/changed config between plan and apply: hashes and atomic compare-before-swap.

@@ -4,7 +4,7 @@
 
 - Date: 2026-07-12 (Asia/Seoul)
 - Branch: `codex/telegram-completion-bridge`
-- Revised blueprint SHA-256: `1cf0239d2eab0f7aa1405a1046b7c80af0b47e84e2e5b4e92c648e0aa8d70539`
+- Revised blueprint SHA-256: `4524af4931805cfedec06eb10d9e7f6245cf4a032b21a3875fa287792a04e748`
 - Implementation commits:
   - `1b4f35f` — secure event, queue, resolver, Telegram, and DPAPI core
   - `38407e5` — durable hook/worker pipeline and upstream launch contract
@@ -20,9 +20,9 @@
 
 - Clean locked restore: PASS
 - Release build with warnings as errors: PASS, 0 warnings
-- Unit tests: 79/79 PASS
-- Integration tests: 81/81 PASS
-- Total automated tests: 160/160 PASS
+- Unit tests: 81/81 PASS
+- Integration tests: 82/82 PASS
+- Total automated tests: 163/163 PASS
 - Real current-user Task Scheduler create/disable/enable/query/remove test: PASS
 - Actual console-subsystem upstream contract test: PASS
   - exact argv and original synthetic payload
@@ -64,12 +64,17 @@
   - observed end-to-end latency is approximately 3–10 seconds, within the provisional p95 10-second / max 30-second target
   - latest online doctor is `OK` with six sent completions, zero inflight, zero quarantine, and no active health condition
   - four earlier non-current, immutable-shadow events remain pending `THREAD_NOT_PERSISTED`; they cannot be sent and remain evidence to recheck at the 12/24/48-hour gates
+- Telegram title-display refinement: PASS in automated verification
+  - runtime Telegram text now keeps at most the first 32 Unicode grapheme clusters and appends one ellipsis
+  - short titles remain byte-for-byte unchanged in the rendered line
+  - the full normalized title remains only in the DPAPI-encrypted delivery envelope for verification and retry stability
+  - family-emoji grapheme boundaries and the full-envelope/short-message split have dedicated unit and integration coverage
 
 ## Canary package
 
-- Release: `CodexTelegramBridge-1.0.0-canary.9-win-x64`
-- `manifest.sha256` outer SHA-256: `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`
-- Rebuild reproducibility check: PASS — canary.8 and canary.9 produced the same outer manifest hash.
+- Release: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
+- `manifest.sha256` outer SHA-256: `e2273d72a6aab1d0dbf6ccebf33cb2333d7d81ab4905b34efd6a039731e377d5`
+- Rebuild reproducibility check: PASS — canary.10 and canary.11 produced the same outer manifest hash.
 - Package contents are fully covered by the inner manifest; unlisted immutable artifacts fail verification.
 - The sibling outer-hash record must be retained separately from the release directory.
 
@@ -100,7 +105,7 @@
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PASS |
-| Current-PC live canary | IN PROGRESS — six total live sends; locked/new/old task paths observed |
+| Current-PC live canary | IN PROGRESS — six prior sends passed; soak clock resets after canary.11 display update |
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 48-hour soak | PENDING |
 | Additional-PC release | BLOCKED by preceding gates |

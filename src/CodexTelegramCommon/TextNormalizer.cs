@@ -32,7 +32,12 @@ public static class TextNormalizer
     public static string? NormalizePcName(string? value) => Normalize(value, BridgeConstants.MaxPcNameGraphemes, BridgeConstants.MaxPcNameUtf16Length);
 
     public static string RenderCompletion(string pcName, string threadTitle) =>
-        string.Concat(BridgeConstants.CompletionLine, "\nPC: ", pcName, "\n스레드: ", threadTitle);
+        string.Concat(
+            BridgeConstants.CompletionLine,
+            "\nPC: ",
+            pcName,
+            "\n스레드: ",
+            TruncateGraphemes(threadTitle, BridgeConstants.MaxTelegramTitleGraphemes));
 
     private static string? Normalize(string? value, int graphemeLimit, int utf16Limit)
     {
