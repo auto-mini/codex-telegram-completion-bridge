@@ -13,6 +13,7 @@
   - `35e8e87` — recovery and reproducible-publish hardening
   - `bfcb994` — verified Computer Use wrapper compatibility and duplicate-upstream suppression
   - `03b08a1` — sidebar-truncated shadow-title verification and interleaved-task qualification
+  - `606178c` — 32-grapheme Telegram title display with full encrypted local retention
 - SDK used: .NET SDK 8.0.422
 - Runtime target: self-contained `win-x64`, trimming disabled
 
