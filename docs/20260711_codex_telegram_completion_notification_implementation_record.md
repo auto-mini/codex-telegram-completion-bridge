@@ -51,6 +51,10 @@
 - Telegram bootstrap and setup test: PASS
   - bot identity, no-webhook state, private chat challenge, setup test, and atomic DPAPI credential commit completed
   - online `getMe`/`getChat` doctor checks report `OK`
+- First current-PC live completion: PASS
+  - user observed exactly one Telegram completion notification
+  - bridge state contains one current-task live event in `sent`, with zero delivery retries
+  - post-send online doctor is `OK`, last-success time is present, and operational logs contain neither PC name nor task title
 
 ## Canary package
 
@@ -87,7 +91,7 @@
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PASS |
-| Current-PC live canary | PENDING |
+| Current-PC live canary | IN PROGRESS — first sequential completion passed |
 | Android Remote canary | PENDING |
 | 48-hour soak | PENDING |
 | Additional-PC release | BLOCKED by preceding gates |
