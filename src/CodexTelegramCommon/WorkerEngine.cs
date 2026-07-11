@@ -12,7 +12,12 @@ public enum WorkerIterationKind
 
 public sealed record WorkerIterationResult(WorkerIterationKind Kind, DateTimeOffset? NextDueUtc = null);
 
-public sealed class WorkerEngine
+public interface IWorkerIterationProcessor
+{
+    Task<WorkerIterationResult> ProcessOneAsync(CancellationToken cancellationToken);
+}
+
+public sealed class WorkerEngine : IWorkerIterationProcessor
 {
     private readonly InstallationLayout layout;
     private readonly QueueStore queue;
@@ -24,6 +29,8 @@ public sealed class WorkerEngine
     private readonly Func<DateTimeOffset> utcNow;
     private readonly Func<string?> computerName;
     private readonly OperationalLog log;
+    private readonly Func<AclVerificationResult> aclVerifier;
+    private readonly Func<bool> localStateCheck;
     private DateTimeOffset? lastNetworkAttemptUtc;
 
     public WorkerEngine(
@@ -36,7 +43,9 @@ public sealed class WorkerEngine
         Func<string, ITelegramBotClient> telegramFactory,
         Func<DateTimeOffset> utcNow,
         Func<string?> computerName,
-        OperationalLog log)
+        OperationalLog log,
+        Func<AclVerificationResult>? aclVerifier = null,
+        Func<bool>? localStateCheck = null)
     {
         this.layout = layout;
         this.queue = queue;
@@ -48,14 +57,17 @@ public sealed class WorkerEngine
         this.utcNow = utcNow;
         this.computerName = computerName;
         this.log = log;
+        this.aclVerifier = aclVerifier ?? (() => WindowsAclManager.VerifyTree(layout.Root, CurrentUserContext.Sid));
+        this.localStateCheck = localStateCheck ?? (() => true);
     }
 
     public static WorkerEngine CreateProduction(InstallationLayout layout)
     {
         var protector = new DpapiSecretProtector();
+        var queue = new QueueStore(layout.DatabasePath);
         return new WorkerEngine(
             layout,
-            new QueueStore(layout.DatabasePath),
+            queue,
             new EmergencySpool(layout.SpoolDirectory),
             new RuntimeConfigStore(layout.RuntimeConfigPath),
             protector,
@@ -63,7 +75,9 @@ public sealed class WorkerEngine
             token => new TelegramBotClient(token),
             () => DateTimeOffset.UtcNow,
             () => Environment.MachineName,
-            new OperationalLog(layout.LogPath));
+            new OperationalLog(layout.LogPath),
+            () => WindowsAclManager.VerifyTree(layout.Root, CurrentUserContext.Sid),
+            () => LocalStateMaintenance.CheckIfDue(layout, queue, DateTimeOffset.UtcNow));
     }
 
     public async Task<WorkerIterationResult> ProcessOneAsync(CancellationToken cancellationToken)
@@ -72,28 +86,92 @@ public sealed class WorkerEngine
         try
         {
             config = configStore.Load();
-            queue.Initialize();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
             log.Write("ERROR", "RUNTIME_CONFIG_INVALID", exception: exception);
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+
+        try
+        {
+            queue.Initialize();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            LocalStateMaintenance.MarkBlocked(layout, utcNow());
+            log.Write("ERROR", HealthCodes.LocalStateBlocked, exception: exception);
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+
+        var acl = aclVerifier();
+        if (!acl.IsValid)
+        {
+            try
+            {
+                queue.UpsertHealth(HealthCodes.InstallAclBlocked, utcNow());
+            }
+            catch (Exception)
+            {
+                // The local store may be part of the ACL failure. Network delivery remains blocked.
+            }
+
+            log.Write("ERROR", HealthCodes.InstallAclBlocked);
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+
+        try
+        {
+            queue.ClearHealth(HealthCodes.InstallAclBlocked);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException exception)
+        {
+            log.Write("ERROR", HealthCodes.LocalStateBlocked, exception: exception);
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+
+        try
+        {
+            if (!localStateCheck())
+            {
+                log.Write("ERROR", HealthCodes.LocalStateBlocked);
+                return new WorkerIterationResult(WorkerIterationKind.Blocked);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            LocalStateMaintenance.MarkBlocked(layout, utcNow());
+            log.Write("ERROR", HealthCodes.LocalStateBlocked, exception: exception);
             return new WorkerIterationResult(WorkerIterationKind.Blocked);
         }
 
         var now = utcNow();
         try
         {
+            queue.PruneTerminal(now);
             spool.ImportAll(queue, now);
             queue.RecoverExpiredLeases(now);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException or InvalidDataException)
         {
             log.Write("ERROR", "LOCAL_STATE_BLOCKED", exception: exception);
             return new WorkerIterationResult(WorkerIterationKind.Blocked);
         }
 
-        var networkAllowed = IsNetworkAllowed(config, now);
-        var item = queue.AcquireNextDue(now, networkAllowed);
+        bool networkAllowed;
+        EventRecord? item;
+        try
+        {
+            networkAllowed = IsNetworkAllowed(config, now);
+            item = queue.AcquireNextDue(now, networkAllowed);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            LocalStateMaintenance.MarkBlocked(layout, now);
+            log.Write("ERROR", HealthCodes.LocalStateBlocked, exception: exception);
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+
         if (item is null)
         {
             var nextDue = queue.GetNextPendingDueUtc(includeDeliveryReady: networkAllowed);
@@ -225,8 +303,31 @@ public sealed class WorkerEngine
         }
 
         await EnforceThrottleAsync(now, cancellationToken).ConfigureAwait(false);
-        using var telegram = telegramFactory(credentials.BotToken);
-        var result = await telegram.SendCompletionAsync(credentials.ChatId, envelope.TelegramText, cancellationToken).ConfigureAwait(false);
+        TelegramCallResult result;
+        try
+        {
+            using var telegram = telegramFactory(credentials.BotToken);
+            result = await telegram.SendCompletionAsync(credentials.ChatId, envelope.TelegramText, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            queue.ReleaseInflightForDelivery(item.EventId, utcNow(), "DELIVERY_CANCELLED");
+            throw;
+        }
+        catch (ArgumentException exception)
+        {
+            queue.BlockDelivery(item.EventId, HealthCodes.AuthBlocked, utcNow());
+            log.Write("ERROR", "TELEGRAM_CLIENT_INVALID", item.EventId, exception: exception);
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidOperationException)
+        {
+            var next = utcNow() + RetryPolicy.DeliveryDelay(item.DeliveryAttemptCount);
+            queue.RescheduleDelivery(item.EventId, next, "NETWORK_ERROR", utcNow());
+            log.Write("WARN", "TELEGRAM_RETRY", item.EventId, item.DeliveryAttemptCount + 1, exception);
+            return new WorkerIterationResult(WorkerIterationKind.Processed, next);
+        }
+
         lastNetworkAttemptUtc = utcNow();
         switch (result.Outcome)
         {
@@ -285,6 +386,7 @@ public sealed class WorkerEngine
 
     private async Task EnforceThrottleAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
+        lastNetworkAttemptUtc ??= queue.GetLastNetworkActivityUtc();
         if (lastNetworkAttemptUtc is null)
         {
             return;
@@ -299,8 +401,14 @@ public sealed class WorkerEngine
 
     private static void ValidateEnvelope(DeliveryEnvelope envelope)
     {
+        var pc = TextNormalizer.NormalizePcName(envelope.PcName);
+        var title = TextNormalizer.NormalizeTitle(envelope.ThreadTitle);
         if (envelope.SchemaVersion != BridgeConstants.SchemaVersion ||
+            pc is null || title is null ||
+            !string.Equals(pc, envelope.PcName, StringComparison.Ordinal) ||
+            !string.Equals(title, envelope.ThreadTitle, StringComparison.Ordinal) ||
             !string.Equals(TextNormalizer.RenderCompletion(envelope.PcName, envelope.ThreadTitle), envelope.TelegramText, StringComparison.Ordinal) ||
+            envelope.TelegramText.Length > BridgeConstants.MaxTelegramTextUtf16Length ||
             envelope.TelegramText.Split('\n').Length != 3)
         {
             throw new InvalidDataException("Delivery envelope failed validation.");

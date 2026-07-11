@@ -5,14 +5,14 @@ namespace CodexTelegramCommon;
 
 public static class TextNormalizer
 {
-    public static string? NormalizeTitle(string? value) => Normalize(value, BridgeConstants.MaxTitleGraphemes);
+    public static string? NormalizeTitle(string? value) => Normalize(value, BridgeConstants.MaxTitleGraphemes, BridgeConstants.MaxTitleUtf16Length);
 
-    public static string? NormalizePcName(string? value) => Normalize(value, BridgeConstants.MaxPcNameGraphemes);
+    public static string? NormalizePcName(string? value) => Normalize(value, BridgeConstants.MaxPcNameGraphemes, BridgeConstants.MaxPcNameUtf16Length);
 
     public static string RenderCompletion(string pcName, string threadTitle) =>
         string.Concat(BridgeConstants.CompletionLine, "\nPC: ", pcName, "\n스레드: ", threadTitle);
 
-    private static string? Normalize(string? value, int graphemeLimit)
+    private static string? Normalize(string? value, int graphemeLimit, int utf16Limit)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -55,7 +55,8 @@ public static class TextNormalizer
             return null;
         }
 
-        return TruncateGraphemes(collapsed, graphemeLimit);
+        var truncated = TruncateGraphemes(collapsed, graphemeLimit);
+        return truncated.Length <= utf16Limit ? truncated : null;
     }
 
     private static string TruncateGraphemes(string value, int limit)

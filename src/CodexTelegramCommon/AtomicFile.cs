@@ -8,7 +8,9 @@ public static class AtomicFile
 
     public static void WriteUtf8(string path, string content) => WriteBytes(path, Utf8NoBom.GetBytes(content));
 
-    public static void WriteBytes(string path, ReadOnlySpan<byte> content)
+    public static void WriteBytes(string path, ReadOnlySpan<byte> content) => WriteBytes(path, content, null);
+
+    public static void WriteBytes(string path, ReadOnlySpan<byte> content, Action<string>? prepareTemporary)
     {
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Target has no directory.");
@@ -28,6 +30,8 @@ public static class AtomicFile
                 stream.Write(content);
                 stream.Flush(flushToDisk: true);
             }
+
+            prepareTemporary?.Invoke(temporary);
 
             if (File.Exists(fullPath))
             {

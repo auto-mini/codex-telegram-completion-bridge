@@ -18,7 +18,7 @@ public sealed class HookHandler(
             config = new RuntimeConfigStore(layout.RuntimeConfigPath).Load();
             queue = new QueueStore(layout.DatabasePath);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
         {
             log.Write("ERROR", "RUNTIME_CONFIG_INVALID", exception: exception);
         }
@@ -36,10 +36,21 @@ public sealed class HookHandler(
                 config.CaptureMode);
             try
             {
-                var outcome = queue.TryInsert(item);
-                if (outcome == InsertOutcome.Busy && !new EmergencySpool(layout.SpoolDirectory).TryWrite(item))
+                var spool = new EmergencySpool(layout.SpoolDirectory);
+                if (File.Exists(layout.LocalStateBlockedMarkerPath))
                 {
-                    log.Write("ERROR", "CAPTURE_STORAGE_FAILED", item.EventId);
+                    if (!spool.TryWrite(item))
+                    {
+                        log.Write("ERROR", "CAPTURE_STORAGE_FAILED", item.EventId);
+                    }
+                }
+                else
+                {
+                    var outcome = queue.TryInsert(item);
+                    if (outcome == InsertOutcome.Busy && !spool.TryWrite(item))
+                    {
+                        log.Write("ERROR", "CAPTURE_STORAGE_FAILED", item.EventId);
+                    }
                 }
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException or InvalidDataException)
@@ -106,14 +117,25 @@ public sealed class HookHandler(
             var result = new UpstreamLauncher(vendorValidator).Launch(upstream, originalNotifyJson);
             if (!result.Success)
             {
-                queue?.UpsertHealth(HealthCodes.UpstreamBlocked, DateTimeOffset.UtcNow);
+                SafeUpsertHealth(queue, HealthCodes.UpstreamBlocked);
                 log.Write("ERROR", result.OperationCode);
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException or System.Text.Json.JsonException or InvalidDataException)
         {
-            queue?.UpsertHealth(HealthCodes.UpstreamBlocked, DateTimeOffset.UtcNow);
+            SafeUpsertHealth(queue, HealthCodes.UpstreamBlocked);
             log.Write("ERROR", "UPSTREAM_STATE_INVALID", exception: exception);
+        }
+    }
+
+    private static void SafeUpsertHealth(QueueStore? queue, string code)
+    {
+        try
+        {
+            queue?.UpsertHealth(code, DateTimeOffset.UtcNow);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException or InvalidDataException)
+        {
         }
     }
 }

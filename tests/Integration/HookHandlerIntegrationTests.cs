@@ -44,6 +44,21 @@ public sealed class HookHandlerIntegrationTests : IDisposable
         Assert.Equal(0, starts);
     }
 
+    [Fact]
+    public void Local_state_block_marker_routes_new_completion_to_emergency_spool()
+    {
+        var layout = PrepareLayout();
+        AtomicFile.WriteUtf8(layout.LocalStateBlockedMarkerPath, "LOCAL_STATE_BLOCKED\n");
+        var handler = new HookHandler(new ReversingProtector(), new VendorExecutableValidator(root), _ => { }, _ => { });
+        var thread = Guid.NewGuid().ToString("D");
+        var turn = Guid.NewGuid().ToString("D");
+
+        handler.Handle(layout, $"{{\"type\":\"agent-turn-complete\",\"thread-id\":\"{thread}\",\"turn-id\":\"{turn}\"}}");
+
+        Assert.Equal(0, new QueueStore(layout.DatabasePath).GetCounts().Pending);
+        Assert.Equal(1, new EmergencySpool(layout.SpoolDirectory).CountPending());
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();

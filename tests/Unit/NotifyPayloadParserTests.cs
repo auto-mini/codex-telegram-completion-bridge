@@ -40,6 +40,15 @@ public sealed class NotifyPayloadParserTests
         Assert.False(NotifyPayloadParser.IsValidOpaqueId(value));
     }
 
+    [Theory]
+    [InlineData("{\"type\":\"agent-turn-complete\",\"type\":\"other\",\"thread-id\":\"t\",\"turn-id\":\"u\"}")]
+    [InlineData("{\"type\":\"agent-turn-complete\",\"thread-id\":\"t\",\"thread-id\":\"other\",\"turn-id\":\"u\"}")]
+    [InlineData("{\"type\":\"agent-turn-complete\",\"thread-id\":\"t\",\"turn-id\":\"u\",\"turn-id\":\"other\"}")]
+    public void Rejects_duplicate_contract_properties(string payload)
+    {
+        Assert.Equal(NotifyParseKind.Invalid, NotifyPayloadParser.Parse(payload).Kind);
+    }
+
     [Fact]
     public void Event_id_is_deterministic_and_partitioned()
     {

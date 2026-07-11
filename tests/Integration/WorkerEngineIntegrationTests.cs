@@ -143,7 +143,8 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
             _ => telegram,
             () => fixture.Now,
             () => "Ignored machine name",
-            new OperationalLog(layout.LogPath));
+            new OperationalLog(layout.LogPath),
+            () => new AclVerificationResult(true, "INSTALL_ACL_OK"));
         return fixture;
     }
 

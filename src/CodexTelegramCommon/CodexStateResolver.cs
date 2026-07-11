@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Numerics;
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace CodexTelegramCommon;
@@ -33,7 +35,17 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
             return new StateResolution(ResolutionKind.NotReady, ErrorCode: "CODEX_HOME_NOT_READY");
         }
 
-        foreach (var candidate in EnumerateCandidates())
+        IReadOnlyList<StateDatabaseCandidate> candidates;
+        try
+        {
+            candidates = EnumerateCandidates();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new StateResolution(ResolutionKind.NotReady, ErrorCode: "STATE_DISCOVERY_RETRY");
+        }
+
+        foreach (var candidate in candidates)
         {
             try
             {
@@ -63,23 +75,37 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
             {
                 return new StateResolution(ResolutionKind.NotReady, ErrorCode: "STATE_DATABASE_IO_RETRY");
             }
+            catch (Exception exception) when (exception is InvalidCastException or ArgumentException)
+            {
+                return new StateResolution(ResolutionKind.Unsupported, ErrorCode: "STATE_ROW_MALFORMED");
+            }
         }
 
         return new StateResolution(ResolutionKind.NotReady, ErrorCode: "THREAD_NOT_PERSISTED");
     }
 
-    public bool HasAnyCompatibleDatabase() => EnumerateCandidates().Any(candidate =>
+    public bool HasAnyCompatibleDatabase()
     {
         try
         {
-            using var connection = OpenReadOnly(candidate.Path);
-            return HasCompatibleSchema(connection);
+            return EnumerateCandidates().Any(candidate =>
+            {
+                try
+                {
+                    using var connection = OpenReadOnly(candidate.Path);
+                    return HasCompatibleSchema(connection);
+                }
+                catch (Exception exception) when (exception is SqliteException or IOException or UnauthorizedAccessException)
+                {
+                    return false;
+                }
+            });
         }
-        catch (Exception exception) when (exception is SqliteException or IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return false;
         }
-    });
+    }
 
     internal IReadOnlyList<StateDatabaseCandidate> EnumerateCandidates()
     {
@@ -92,7 +118,7 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
             .Select(path =>
             {
                 var match = StateFileRegex().Match(Path.GetFileName(path));
-                return match.Success && int.TryParse(match.Groups[1].Value, out var suffix)
+                return match.Success && BigInteger.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var suffix)
                     ? new StateDatabaseCandidate(path, suffix, File.GetLastWriteTimeUtc(path))
                     : null;
             })
@@ -184,6 +210,11 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
             return new StructuredSourceResult(false, false);
         }
 
+        if (source.Length > 64 * 1024)
+        {
+            return new StructuredSourceResult(false, true);
+        }
+
         try
         {
             using var document = JsonDocument.Parse(source);
@@ -205,4 +236,4 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
     private sealed record StructuredSourceResult(bool HasSubagent, bool Malformed);
 }
 
-public sealed record StateDatabaseCandidate(string Path, int NumericSuffix, DateTime LastWriteTimeUtc);
+public sealed record StateDatabaseCandidate(string Path, BigInteger NumericSuffix, DateTime LastWriteTimeUtc);

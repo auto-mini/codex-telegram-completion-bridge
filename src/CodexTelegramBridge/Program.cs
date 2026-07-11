@@ -21,7 +21,11 @@ internal static class Program
                     () => DateTimeOffset.UtcNow)
                 .RunAsync(CancellationToken.None)
                 .ConfigureAwait(false),
-            "repair-check" when args.Length == 1 => 0,
+            "repair-check" when args.Length == 1 => RepairService.CreateProduction().Run(layout).Outcome switch
+            {
+                RepairOutcome.Healthy or RepairOutcome.Repaired or RepairOutcome.Pending => 0,
+                _ => 3,
+            },
             _ => 2,
         };
     }

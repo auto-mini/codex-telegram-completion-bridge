@@ -14,11 +14,31 @@ public sealed class DpapiSecretProtector : ISecretProtector
 {
     private static readonly byte[] Entropy = "CodexTelegramBridge:v1"u8.ToArray();
 
-    public byte[] Protect(ReadOnlySpan<byte> plaintext) =>
-        ProtectedData.Protect(plaintext.ToArray(), Entropy, DataProtectionScope.CurrentUser);
+    public byte[] Protect(ReadOnlySpan<byte> plaintext)
+    {
+        var input = plaintext.ToArray();
+        try
+        {
+            return ProtectedData.Protect(input, Entropy, DataProtectionScope.CurrentUser);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(input);
+        }
+    }
 
-    public byte[] Unprotect(ReadOnlySpan<byte> ciphertext) =>
-        ProtectedData.Unprotect(ciphertext.ToArray(), Entropy, DataProtectionScope.CurrentUser);
+    public byte[] Unprotect(ReadOnlySpan<byte> ciphertext)
+    {
+        var input = ciphertext.ToArray();
+        try
+        {
+            return ProtectedData.Unprotect(input, Entropy, DataProtectionScope.CurrentUser);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(input);
+        }
+    }
 }
 
 public sealed class ProtectedJsonStore<T>(string path, ISecretProtector protector)
@@ -31,8 +51,14 @@ public sealed class ProtectedJsonStore<T>(string path, ISecretProtector protecto
         try
         {
             var ciphertext = protector.Protect(plaintext);
-            AtomicFile.WriteBytes(path, ciphertext);
-            CryptographicOperations.ZeroMemory(ciphertext);
+            try
+            {
+                AtomicFile.WriteBytes(path, ciphertext);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(ciphertext);
+            }
         }
         finally
         {
@@ -43,15 +69,21 @@ public sealed class ProtectedJsonStore<T>(string path, ISecretProtector protecto
     public T Load()
     {
         var ciphertext = File.ReadAllBytes(path);
-        var plaintext = protector.Unprotect(ciphertext);
         try
         {
-            return JsonSerializer.Deserialize<T>(plaintext, JsonDefaults.Options)
-                   ?? throw new InvalidDataException("Protected JSON is empty.");
+            var plaintext = protector.Unprotect(ciphertext);
+            try
+            {
+                return JsonSerializer.Deserialize<T>(plaintext, JsonDefaults.Options)
+                       ?? throw new InvalidDataException("Protected JSON is empty.");
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+            }
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(plaintext);
             CryptographicOperations.ZeroMemory(ciphertext);
         }
     }

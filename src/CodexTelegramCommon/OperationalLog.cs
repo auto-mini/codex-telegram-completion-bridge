@@ -22,9 +22,19 @@ public sealed class OperationalLog(string path)
 
         lock (Sync)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            RotateIfNeeded();
-            File.AppendAllText(path, line, new UTF8Encoding(false));
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                RotateIfNeeded();
+                var bytes = new UTF8Encoding(false).GetBytes(line);
+                using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+                stream.Write(bytes);
+                stream.Flush();
+            }
+            catch (Exception writeError) when (writeError is IOException or UnauthorizedAccessException)
+            {
+                // Operational logging is best effort and must never break notify fan-out.
+            }
         }
     }
 

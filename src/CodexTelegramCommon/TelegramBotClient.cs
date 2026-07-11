@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace CodexTelegramCommon;
@@ -198,54 +199,61 @@ public sealed class TelegramBotClient : ITelegramBotClient
                 return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "RESPONSE_TOO_LARGE"), null);
             }
 
-            using var document = TryParse(bytes);
-            var hasValidRoot = document is not null && document.RootElement.ValueKind == JsonValueKind.Object;
-            var retryAfter = hasValidRoot ? ReadRetryAfter(document!.RootElement) : null;
-            if (retryAfter is not null)
+            try
             {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_RETRY_AFTER", retryAfter), null);
-            }
+                using var document = TryParse(bytes);
+                var hasValidRoot = document is not null && document.RootElement.ValueKind == JsonValueKind.Object;
+                var retryAfter = hasValidRoot ? ReadRetryAfter(document!.RootElement) : null;
+                if (retryAfter is not null)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_RETRY_AFTER", retryAfter), null);
+                }
 
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_429", TimeSpan.FromSeconds(60)), null);
+                }
+
+                if (response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.AuthBlocked, HealthCodes.AuthBlocked), null);
+                }
+
+                if (response.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.ChatBlocked, HealthCodes.ChatBlocked), null);
+                }
+
+                if ((int)response.StatusCode >= 500)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_5XX"), null);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.ApiBlocked, HealthCodes.TelegramApiBlocked), null);
+                }
+
+                if (!hasValidRoot ||
+                    !document!.RootElement.TryGetProperty("ok", out var okElement) ||
+                    okElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "RESPONSE_PROTOCOL_INVALID"), null);
+                }
+
+                if (okElement.ValueKind != JsonValueKind.True)
+                {
+                    return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.ApiBlocked, HealthCodes.TelegramApiBlocked), null);
+                }
+
+                return document.RootElement.TryGetProperty("result", out var result)
+                    ? new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Success, "TELEGRAM_OK"), result.Clone())
+                    : new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Success, "TELEGRAM_OK"), null);
+            }
+            finally
             {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_429", TimeSpan.FromSeconds(60)), null);
+                CryptographicOperations.ZeroMemory(bytes);
             }
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.AuthBlocked, HealthCodes.AuthBlocked), null);
-            }
-
-            if (response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.ChatBlocked, HealthCodes.ChatBlocked), null);
-            }
-
-            if ((int)response.StatusCode >= 500)
-            {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_5XX"), null);
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.ApiBlocked, HealthCodes.TelegramApiBlocked), null);
-            }
-
-            if (!hasValidRoot ||
-                !document!.RootElement.TryGetProperty("ok", out var okElement) ||
-                okElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-            {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Retry, "RESPONSE_PROTOCOL_INVALID"), null);
-            }
-
-            if (okElement.ValueKind != JsonValueKind.True)
-            {
-                return new ApiResponse(new TelegramCallResult(TelegramCallOutcome.ApiBlocked, HealthCodes.TelegramApiBlocked), null);
-            }
-
-            return document.RootElement.TryGetProperty("result", out var result)
-                ? new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Success, "TELEGRAM_OK"), result.Clone())
-                : new ApiResponse(new TelegramCallResult(TelegramCallOutcome.Success, "TELEGRAM_OK"), null);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -332,7 +340,7 @@ public sealed class TelegramBotClient : ITelegramBotClient
 
     private static string ValidateToken(string value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.Length > 256 || value.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)))
+        if (!TelegramTokenShape.IsValid(value))
         {
             throw new ArgumentException("Telegram bot token shape is invalid.", nameof(value));
         }

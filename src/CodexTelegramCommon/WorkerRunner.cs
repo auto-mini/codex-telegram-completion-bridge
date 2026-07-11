@@ -1,6 +1,11 @@
 namespace CodexTelegramCommon;
 
-public sealed class WorkerRunner(WorkerEngine engine, RuntimeConfigStore configStore, Func<DateTimeOffset> utcNow)
+public sealed class WorkerRunner(
+    IWorkerIterationProcessor engine,
+    RuntimeConfigStore configStore,
+    Func<DateTimeOffset> utcNow,
+    TimeSpan? idleTimeout = null,
+    TimeSpan? maximumWait = null)
 {
     public Task<int> RunAsync(CancellationToken cancellationToken)
     {
@@ -55,7 +60,7 @@ public sealed class WorkerRunner(WorkerEngine engine, RuntimeConfigStore configS
                 bool signaled;
                 try
                 {
-                    signaled = coordination.Wait(TimeSpan.FromSeconds(60), cancellationToken);
+                    signaled = coordination.Wait(idleTimeout ?? TimeSpan.FromSeconds(60), cancellationToken);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -78,7 +83,8 @@ public sealed class WorkerRunner(WorkerEngine engine, RuntimeConfigStore configS
 
             try
             {
-                coordination.Wait(delay > TimeSpan.FromMinutes(5) ? TimeSpan.FromMinutes(5) : delay, cancellationToken);
+                var cap = maximumWait ?? TimeSpan.FromMinutes(5);
+                coordination.Wait(delay > cap ? cap : delay, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

@@ -16,8 +16,42 @@ public sealed class QueueStore(string databasePath)
         ExecuteNonQuery(connection, "PRAGMA journal_mode=WAL;");
         ExecuteNonQuery(connection, "PRAGMA synchronous=FULL;");
         ExecuteNonQuery(connection, "PRAGMA foreign_keys=ON;");
-        ExecuteNonQuery(connection, SchemaSql);
-        ExecuteNonQuery(connection, $"PRAGMA user_version={BridgeConstants.SchemaVersion};");
+        var version = ReadUserVersion(connection);
+        if (version == 0)
+        {
+            if (HasUserTables(connection))
+            {
+                throw new InvalidDataException("Unversioned bridge database contains unknown tables.");
+            }
+
+            using var transaction = connection.BeginTransaction(deferred: false);
+            ExecuteNonQuery(connection, SchemaSql, transaction);
+            ExecuteNonQuery(connection, $"PRAGMA user_version={BridgeConstants.SchemaVersion};", transaction);
+            transaction.Commit();
+        }
+        else if (version != BridgeConstants.SchemaVersion)
+        {
+            throw new InvalidDataException("Bridge database schema version is unsupported.");
+        }
+
+        ValidateSchema(connection);
+    }
+
+    public int GetSchemaVersion()
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        return ReadUserVersion(connection);
+    }
+
+    public void ValidateExistingSchema()
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        if (ReadUserVersion(connection) != BridgeConstants.SchemaVersion)
+        {
+            throw new InvalidDataException("Bridge database schema version is unsupported.");
+        }
+
+        ValidateSchema(connection);
     }
 
     public InsertOutcome TryInsert(MinimalEvent item, int? busyTimeoutMilliseconds = null)
@@ -258,8 +292,10 @@ public sealed class QueueStore(string databasePath)
         var items = new List<HealthConditionRecord>();
         while (reader.Read())
         {
+            var code = reader.GetString(0);
+            ValidateHealthCode(code);
             items.Add(new HealthConditionRecord(
-                reader.GetString(0),
+                code,
                 Parse(reader.GetString(1)),
                 Parse(reader.GetString(2)),
                 reader.IsDBNull(3) ? null : Parse(reader.GetString(3))));
@@ -303,6 +339,31 @@ public sealed class QueueStore(string databasePath)
         using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT MIN(observed_at_utc) FROM events WHERE state IN ('pending', 'inflight');";
+        var value = command.ExecuteScalar();
+        return value is string text ? Parse(text) : null;
+    }
+
+    public DateTimeOffset? GetLastSuccessfulSendUtc()
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT MAX(completed_at_utc) FROM events WHERE state = 'sent';";
+        var value = command.ExecuteScalar();
+        return value is string text ? Parse(text) : null;
+    }
+
+    public DateTimeOffset? GetLastNetworkActivityUtc()
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT MAX(value) FROM (
+                SELECT MAX(completed_at_utc) AS value FROM events WHERE state = 'sent'
+                UNION ALL
+                SELECT MAX(last_observed_utc) AS value FROM health_conditions
+                WHERE condition_code IN ('TELEGRAM_RETRYING', 'AUTH_BLOCKED', 'CHAT_BLOCKED', 'TELEGRAM_API_BLOCKED')
+            );
+            """;
         var value = command.ExecuteScalar();
         return value is string text ? Parse(text) : null;
     }
@@ -372,6 +433,20 @@ public sealed class QueueStore(string databasePath)
         return reader.Read() ? ReadEvent(reader) : null;
     }
 
+    public int PruneTerminal(DateTimeOffset nowUtc)
+    {
+        using var connection = OpenConnection(readOnly: false, busyTimeoutMilliseconds: 5_000);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            DELETE FROM events
+            WHERE (state = 'sent' AND completed_at_utc < $sent_before)
+               OR (state IN ('shadow', 'suppressed') AND completed_at_utc < $short_before);
+            """;
+        command.Parameters.AddWithValue("$sent_before", Format(nowUtc - TimeSpan.FromDays(30)));
+        command.Parameters.AddWithValue("$short_before", Format(nowUtc - TimeSpan.FromDays(7)));
+        return command.ExecuteNonQuery();
+    }
+
     private void Complete(string eventId, EventState state, DateTimeOffset completedUtc, byte[]? envelope, string? errorCode)
     {
         using var connection = OpenConnection(readOnly: false, busyTimeoutMilliseconds: 5_000);
@@ -438,21 +513,35 @@ public sealed class QueueStore(string databasePath)
         return connection;
     }
 
-    private static EventRecord ReadEvent(SqliteDataReader reader) => new(
-        reader.GetString(reader.GetOrdinal("event_id")),
-        reader.GetString(reader.GetOrdinal("machine_id")),
-        reader.GetString(reader.GetOrdinal("thread_id")),
-        reader.GetString(reader.GetOrdinal("turn_id")),
-        Parse(reader.GetString(reader.GetOrdinal("observed_at_utc"))),
-        ParseCaptureMode(reader.GetString(reader.GetOrdinal("ingest_mode"))),
-        ParseState(reader.GetString(reader.GetOrdinal("state"))),
-        reader.GetInt32(reader.GetOrdinal("resolution_attempt_count")),
-        reader.GetInt32(reader.GetOrdinal("delivery_attempt_count")),
-        Parse(reader.GetString(reader.GetOrdinal("next_attempt_at_utc"))),
-        ReadNullableTimestamp(reader, "lease_until_utc"),
-        ReadNullableString(reader, "last_error_code"),
-        ReadNullableTimestamp(reader, "completed_at_utc"),
-        ReadNullableBlob(reader, "delivery_envelope_dpapi"));
+    private static EventRecord ReadEvent(SqliteDataReader reader)
+    {
+        var item = new EventRecord(
+            reader.GetString(reader.GetOrdinal("event_id")),
+            reader.GetString(reader.GetOrdinal("machine_id")),
+            reader.GetString(reader.GetOrdinal("thread_id")),
+            reader.GetString(reader.GetOrdinal("turn_id")),
+            Parse(reader.GetString(reader.GetOrdinal("observed_at_utc"))),
+            ParseCaptureMode(reader.GetString(reader.GetOrdinal("ingest_mode"))),
+            ParseState(reader.GetString(reader.GetOrdinal("state"))),
+            reader.GetInt32(reader.GetOrdinal("resolution_attempt_count")),
+            reader.GetInt32(reader.GetOrdinal("delivery_attempt_count")),
+            Parse(reader.GetString(reader.GetOrdinal("next_attempt_at_utc"))),
+            ReadNullableTimestamp(reader, "lease_until_utc"),
+            ReadNullableString(reader, "last_error_code"),
+            ReadNullableTimestamp(reader, "completed_at_utc"),
+            ReadNullableBlob(reader, "delivery_envelope_dpapi"));
+        if (!Guid.TryParseExact(item.MachineId, "D", out _) ||
+            item.EventId is not { Length: 64 } || !item.EventId.All(Uri.IsHexDigit) ||
+            !NotifyPayloadParser.IsValidOpaqueId(item.ThreadId) ||
+            !NotifyPayloadParser.IsValidOpaqueId(item.TurnId) ||
+            !string.Equals(Hashing.EventId(item.MachineId, item.ThreadId, item.TurnId), item.EventId, StringComparison.Ordinal) ||
+            item.ResolutionAttemptCount < 0 || item.DeliveryAttemptCount < 0)
+        {
+            throw new InvalidDataException("Stored event failed integrity validation.");
+        }
+
+        return item;
+    }
 
     private static void UpsertHealth(
         SqliteConnection connection,
@@ -491,18 +580,64 @@ public sealed class QueueStore(string databasePath)
         command.ExecuteNonQuery();
     }
 
-    private static void ExecuteNonQuery(SqliteConnection connection, string sql)
+    private static void ExecuteNonQuery(SqliteConnection connection, string sql, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    private static int ReadUserVersion(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA user_version;";
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private static bool HasUserTables(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%');";
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
+    }
+
+    private static void ValidateSchema(SqliteConnection connection)
+    {
+        ValidateColumns(connection, "events",
+        [
+            "event_id", "machine_id", "thread_id", "turn_id", "observed_at_utc", "ingest_mode", "state",
+            "resolution_attempt_count", "delivery_attempt_count", "next_attempt_at_utc", "lease_until_utc",
+            "last_error_code", "completed_at_utc", "delivery_envelope_dpapi",
+        ]);
+        ValidateColumns(connection, "health_conditions",
+        [
+            "condition_code", "first_observed_utc", "last_observed_utc", "not_before_utc",
+        ]);
+    }
+
+    private static void ValidateColumns(SqliteConnection connection, string table, IEnumerable<string> expectedColumns)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({table});";
+        using var reader = command.ExecuteReader();
+        var actual = new HashSet<string>(StringComparer.Ordinal);
+        while (reader.Read())
+        {
+            actual.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        if (!actual.SetEquals(expectedColumns))
+        {
+            throw new InvalidDataException($"Bridge database table {table} has an unsupported schema.");
+        }
     }
 
     private static void ValidateMinimalEvent(MinimalEvent item)
     {
         if (item.SchemaVersion != BridgeConstants.SchemaVersion ||
             !Guid.TryParseExact(item.MachineId, "D", out _) ||
-            item.EventId.Length != 64 ||
+            item.EventId is not { Length: 64 } ||
             !item.EventId.All(Uri.IsHexDigit) ||
             !NotifyPayloadParser.IsValidOpaqueId(item.ThreadId) ||
             !NotifyPayloadParser.IsValidOpaqueId(item.TurnId) ||

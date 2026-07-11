@@ -10,16 +10,21 @@ public sealed class EmergencySpool(string spoolDirectory)
 
     public bool TryWrite(MinimalEvent item)
     {
-        Directory.CreateDirectory(SpoolDirectory);
-        var path = Path.Combine(SpoolDirectory, $"{item.EventId}.json");
+        if (!IsValid(item))
+        {
+            return false;
+        }
+
         try
         {
+            Directory.CreateDirectory(SpoolDirectory);
+            var path = Path.Combine(SpoolDirectory, $"{item.EventId}.json");
             using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);
             JsonSerializer.Serialize(stream, item, JsonDefaults.Options);
             stream.Flush(flushToDisk: true);
             return true;
         }
-        catch (IOException) when (File.Exists(path))
+        catch (IOException) when (File.Exists(Path.Combine(SpoolDirectory, $"{item.EventId}.json")))
         {
             return true;
         }
@@ -88,6 +93,11 @@ public sealed class EmergencySpool(string spoolDirectory)
 
     private static void ValidateFileName(string path, MinimalEvent item)
     {
+        if (!IsValid(item))
+        {
+            throw new InvalidDataException("Spool event shape is invalid.");
+        }
+
         var fileName = Path.GetFileNameWithoutExtension(path);
         var expected = Hashing.EventId(item.MachineId, item.ThreadId, item.TurnId);
         if (item.SchemaVersion != BridgeConstants.SchemaVersion ||
@@ -97,6 +107,15 @@ public sealed class EmergencySpool(string spoolDirectory)
             throw new InvalidDataException("Spool event identity mismatch.");
         }
     }
+
+    private static bool IsValid(MinimalEvent item) =>
+        item.SchemaVersion == BridgeConstants.SchemaVersion &&
+        item.EventId is { Length: 64 } &&
+        item.EventId.All(Uri.IsHexDigit) &&
+        Guid.TryParseExact(item.MachineId, "D", out _) &&
+        NotifyPayloadParser.IsValidOpaqueId(item.ThreadId) &&
+        NotifyPayloadParser.IsValidOpaqueId(item.TurnId) &&
+        string.Equals(Hashing.EventId(item.MachineId, item.ThreadId, item.TurnId), item.EventId, StringComparison.Ordinal);
 
     private void MoveToCorrupt(string path)
     {

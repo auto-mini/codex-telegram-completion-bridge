@@ -36,7 +36,7 @@ public static class NotifyPayloadParser
             });
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object ||
-                !root.TryGetProperty("type", out var typeElement) ||
+                !TryGetUniqueProperty(root, "type", out var typeElement) ||
                 typeElement.ValueKind != JsonValueKind.String)
             {
                 return new NotifyParseResult(NotifyParseKind.Invalid, ErrorCode: "PAYLOAD_ENVELOPE_INVALID");
@@ -61,9 +61,9 @@ public static class NotifyPayloadParser
         }
     }
 
-    internal static bool IsValidOpaqueId(string value)
+    internal static bool IsValidOpaqueId(string? value)
     {
-        if (value.Length is < 1 or > BridgeConstants.MaxOpaqueIdUtf16Length)
+        if (value is null || value.Length is < 1 or > BridgeConstants.MaxOpaqueIdUtf16Length)
         {
             return false;
         }
@@ -86,12 +86,35 @@ public static class NotifyPayloadParser
     private static bool TryGetOpaqueId(JsonElement root, string propertyName, out string value)
     {
         value = string.Empty;
-        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind != JsonValueKind.String)
+        if (!TryGetUniqueProperty(root, propertyName, out var element) || element.ValueKind != JsonValueKind.String)
         {
             return false;
         }
 
         value = element.GetString() ?? string.Empty;
         return IsValidOpaqueId(value);
+    }
+
+    private static bool TryGetUniqueProperty(JsonElement root, string name, out JsonElement value)
+    {
+        value = default;
+        var found = false;
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (found)
+            {
+                return false;
+            }
+
+            value = property.Value;
+            found = true;
+        }
+
+        return found;
     }
 }

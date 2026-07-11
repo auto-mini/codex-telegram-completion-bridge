@@ -25,14 +25,31 @@ public sealed record TelegramCredentials(
     public void Validate()
     {
         if (SchemaVersion != BridgeConstants.SchemaVersion ||
-            string.IsNullOrWhiteSpace(BotToken) || BotToken.Length > 256 ||
-            BotToken.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)) ||
+            !TelegramTokenShape.IsValid(BotToken) ||
             BotUserId <= 0 ||
             ChatId == 0 ||
             !string.Equals(ChatType, "private", StringComparison.Ordinal))
         {
             throw new InvalidDataException("Telegram credentials failed validation.");
         }
+    }
+}
+
+public static class TelegramTokenShape
+{
+    public static bool IsValid(string? value)
+    {
+        if (value is null || value.Length is < 3 or > 256)
+        {
+            return false;
+        }
+
+        var colon = value.IndexOf(':');
+        return colon is > 0 and <= 20 &&
+               colon == value.LastIndexOf(':') &&
+               value[..colon].All(character => character is >= '0' and <= '9') &&
+               value[(colon + 1)..].Length is > 0 and <= 200 &&
+               value[(colon + 1)..].All(character => character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '_' or '-');
     }
 }
 

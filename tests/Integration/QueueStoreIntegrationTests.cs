@@ -130,6 +130,102 @@ public sealed class QueueStoreIntegrationTests : IDisposable
         Assert.Equal(1, queue.GetCounts().Pending);
     }
 
+    [Fact]
+    public void Newer_or_unversioned_unknown_schema_is_never_downgraded()
+    {
+        Directory.CreateDirectory(root);
+        var newerPath = Path.Combine(root, "newer.sqlite");
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = newerPath, Pooling = false }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA user_version=2;";
+            command.ExecuteNonQuery();
+        }
+
+        Assert.Throws<InvalidDataException>(() => new QueueStore(newerPath).Initialize());
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = newerPath, Pooling = false }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA user_version;";
+            Assert.Equal(2L, (long)command.ExecuteScalar()!);
+        }
+
+        var unknownPath = Path.Combine(root, "unknown.sqlite");
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = unknownPath, Pooling = false }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TABLE unknown(value TEXT);";
+            command.ExecuteNonQuery();
+        }
+
+        Assert.Throws<InvalidDataException>(() => new QueueStore(unknownPath).Initialize());
+    }
+
+    [Fact]
+    public void Null_identity_spool_is_quarantined_instead_of_crashing_import()
+    {
+        var queue = CreateQueue();
+        var spool = new EmergencySpool(Path.Combine(root, "null-spool"));
+        Directory.CreateDirectory(spool.SpoolDirectory);
+        File.WriteAllText(
+            Path.Combine(spool.SpoolDirectory, $"{new string('b', 64)}.json"),
+            "{\"schema_version\":1,\"event_id\":null,\"machine_id\":null,\"thread_id\":null,\"turn_id\":null,\"observed_at_utc\":\"2026-07-11T00:00:00+00:00\",\"ingest_mode\":\"shadow\"}");
+
+        var result = spool.ImportAll(queue, DateTimeOffset.UtcNow);
+
+        Assert.Equal(1, result.Corrupt);
+        Assert.Equal(1, spool.CountCorrupt());
+    }
+
+    [Fact]
+    public void Daily_quick_check_marker_blocks_until_explicit_verified_clear()
+    {
+        var layout = new InstallationLayout(Path.Combine(root, "maintenance"));
+        layout.EnsureMutableDirectories();
+        var queue = new QueueStore(layout.DatabasePath);
+        queue.Initialize();
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.True(LocalStateMaintenance.CheckIfDue(layout, queue, now));
+        Assert.True(File.Exists(layout.QuickCheckStampPath));
+        LocalStateMaintenance.MarkBlocked(layout, now.AddMinutes(1));
+        Assert.False(LocalStateMaintenance.CheckIfDue(layout, queue, now.AddMinutes(2)));
+        Assert.True(File.Exists(layout.LocalStateBlockedMarkerPath));
+        Assert.NotEmpty(Directory.EnumerateDirectories(layout.BackupsDirectory, "local-state-diagnostic-*"));
+
+        LocalStateMaintenance.ClearAfterVerifiedRepair(layout);
+        Assert.False(File.Exists(layout.LocalStateBlockedMarkerPath));
+        Assert.True(LocalStateMaintenance.CheckIfDue(layout, queue, now.AddMinutes(3)));
+    }
+
+    [Fact]
+    public void Pruning_removes_only_expired_terminal_rows()
+    {
+        var queue = CreateQueue();
+        var now = DateTimeOffset.UtcNow;
+        var oldSent = CreateEvent(CaptureMode.Live) with { ObservedAtUtc = now.AddDays(-40) };
+        var oldShadow = CreateEvent(CaptureMode.Shadow) with { ObservedAtUtc = now.AddDays(-8) };
+        var pending = CreateEvent(CaptureMode.Live) with { ObservedAtUtc = now.AddDays(-100) };
+        queue.TryInsert(oldSent);
+        queue.AcquireNextDue(now, true);
+        queue.MarkSent(oldSent.EventId, now.AddDays(-31));
+        queue.TryInsert(oldShadow);
+        var acquiredShadow = queue.AcquireNextDue(now, false)!;
+        Assert.Equal(oldShadow.EventId, acquiredShadow.EventId);
+        queue.MarkShadow(oldShadow.EventId, [1], now.AddDays(-8));
+        queue.TryInsert(pending);
+
+        var removed = queue.PruneTerminal(now);
+
+        Assert.Equal(2, removed);
+        Assert.Null(queue.GetEvent(oldSent.EventId));
+        Assert.Null(queue.GetEvent(oldShadow.EventId));
+        Assert.NotNull(queue.GetEvent(pending.EventId));
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();
