@@ -22,7 +22,7 @@ public sealed class InstallApplier(
     Func<string> currentCodexHome,
     Func<IReadOnlyList<string>> runningDesktopProcesses,
     Action<string> signalWorker,
-    Func<InstallationLayout, TimeSpan, bool> waitForWorkers,
+    Func<InstallationLayout, string, TimeSpan, bool> waitForWorkers,
     Action ensureSupportedHost,
     Action<string> phaseFault)
 {
@@ -41,7 +41,7 @@ public sealed class InstallApplier(
         CurrentUserContext.ResolveCodexHome,
         DesktopProcessGuard.FindRunning,
         WorkerCoordination.SignalExistingOrCreate,
-        BridgeProcessGuard.WaitForWorkersToExit,
+        BridgeProcessGuard.RequestStopAndWait,
         CurrentUserContext.EnsureSupportedHost,
         _ => { });
 
@@ -144,7 +144,7 @@ public sealed class InstallApplier(
                 tasks.DisableAll();
                 tasksStaged = true;
                 signalWorker(previousRuntimeConfig.MachineId);
-                if (!waitForWorkers(layout, TimeSpan.FromSeconds(25)))
+                if (!waitForWorkers(layout, previousRuntimeConfig.MachineId, TimeSpan.FromSeconds(25)))
                 {
                     throw new InvalidOperationException("WORKER_STILL_RUNNING");
                 }
@@ -193,13 +193,27 @@ public sealed class InstallApplier(
             }
             else
             {
+                var retainedPause = false;
+                if (previousRuntime is not null)
+                {
+                    try
+                    {
+                        retainedPause = JsonSerializer.Deserialize<RuntimeConfig>(previousRuntime, JsonDefaults.Options)?.DeliveryPaused == true;
+                    }
+                    catch (JsonException)
+                    {
+                    }
+                }
+
+                var retainedCounts = queue.GetCounts();
+                var retainedBacklog = rootExisted && retainedCounts.Pending + retainedCounts.Inflight > 0;
                 runtime = new RuntimeConfig
                 {
                     MachineId = plan.MachineId,
                     CodexHome = plan.CodexHome,
                     PcAlias = plan.PcAlias,
                     CaptureMode = CaptureMode.Shadow,
-                    DeliveryPaused = false,
+                    DeliveryPaused = retainedPause || retainedBacklog,
                     AutoRepairVendorNotify = true,
                 };
             }
@@ -274,7 +288,8 @@ public sealed class InstallApplier(
                 previousUpstream,
                 previousInstallationRecord,
                 packageRollback ?? PackageRollback.TryLoad(layout, transactionId),
-                rootExisted);
+                rootExisted,
+                plan.NotifyClassification == NotifyClassification.HealthyBridge);
             throw new InstallApplyException(OperationCode(exception), rollbackSucceeded, exception);
         }
         finally
@@ -321,6 +336,7 @@ public sealed class InstallApplier(
             }
 
             PackageRollback.TryLoad(layout, journal.TransactionId)?.Cleanup();
+            BridgeProcessGuard.ClearStopRequest(layout);
             File.Delete(layout.ActiveJournalPath);
             return;
         }
@@ -387,6 +403,7 @@ public sealed class InstallApplier(
             {
             }
         }
+        BridgeProcessGuard.ClearStopRequest(layout);
         File.Delete(layout.ActiveJournalPath);
     }
 
@@ -433,12 +450,22 @@ public sealed class InstallApplier(
             throw new InvalidOperationException("CONFIG_CONFLICT");
         }
 
+        if (File.Exists(plan.ConfigPath) != plan.ConfigExisted)
+        {
+            throw new InvalidOperationException("CONFIG_EXISTENCE_CHANGED");
+        }
+
         var expectedLayout = new InstallationLayout(plan.InstallationRoot);
         if (!string.Equals(plan.BridgeExecutablePath, Path.Combine(expectedLayout.Bin, "CodexTelegramBridge.exe"), StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(plan.ControlExecutablePath, Path.Combine(expectedLayout.Bin, "CodexTelegramCtl.exe"), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("PLAN_TARGET_CHANGED");
         }
+
+
+        EnsureOptionalFileHash(expectedLayout.TransactionRecordPath, plan.ExistingInstallationRecordSha256, "INSTALL_IDENTITY_CHANGED");
+        EnsureOptionalFileHash(expectedLayout.RuntimeConfigPath, plan.ExistingRuntimeConfigSha256, "RUNTIME_CONFIG_CHANGED");
+        EnsureOptionalFileHash(expectedLayout.UpstreamPath, plan.ExistingUpstreamSha256, "UPSTREAM_STATE_CHANGED");
 
         var package = PackageManifest.LoadAndVerify(plan.PackageRoot);
         if (!string.Equals(package.ManifestSha256, plan.ManifestSha256, StringComparison.Ordinal))
@@ -493,14 +520,15 @@ public sealed class InstallApplier(
         byte[]? previousUpstream,
         byte[]? previousInstallationRecord,
         PackageRollback? packageRollback,
-        bool rootExisted)
+        bool rootExisted,
+        bool wasUpgrade)
     {
         try
         {
             if (tasksStaged)
             {
                 tasks.DisableAll();
-                if (!rootExisted)
+                if (!wasUpgrade)
                 {
                     tasks.RemoveAll();
                 }
@@ -527,7 +555,7 @@ public sealed class InstallApplier(
                     Directory.Delete(full, recursive: true);
                 }
             }
-            else if (tasksStaged)
+            else if (tasksStaged && wasUpgrade)
             {
                 tasks.EnableAll();
             }
@@ -595,6 +623,15 @@ public sealed class InstallApplier(
         if (!string.Equals(Hashing.Sha256Hex(bytes), expected, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("CONFIG_HASH_CHANGED");
+        }
+    }
+
+    private static void EnsureOptionalFileHash(string path, string? expected, string operationCode)
+    {
+        if (File.Exists(path) != (expected is not null) ||
+            expected is not null && !string.Equals(Hashing.Sha256File(path), expected, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(operationCode);
         }
     }
 

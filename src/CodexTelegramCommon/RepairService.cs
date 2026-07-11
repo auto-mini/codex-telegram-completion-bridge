@@ -54,6 +54,16 @@ public sealed class RepairService(
         }
 
         queue.ClearHealth(HealthCodes.InstallAclBlocked);
+        if (File.Exists(layout.WorkerStopMarkerPath) && !File.Exists(layout.ActiveJournalPath))
+        {
+            BridgeProcessGuard.ClearStopRequest(layout);
+        }
+
+        if (File.Exists(layout.ActiveJournalPath))
+        {
+            return RecoverUnfinished(layout, queue);
+        }
+
         RuntimeConfig runtime;
         try
         {
@@ -105,12 +115,6 @@ public sealed class RepairService(
         {
             TrySetHealth(queue, HealthCodes.RepairPending);
             return new RepairResult(RepairOutcome.Pending, HealthCodes.RepairPending);
-        }
-
-        if (File.Exists(layout.ActiveJournalPath))
-        {
-            TrySetHealth(queue, HealthCodes.RepairPending);
-            return new RepairResult(RepairOutcome.Pending, "JOURNAL_RECOVERY_REQUIRED");
         }
 
         var transactionId = Guid.NewGuid().ToString("D");
@@ -203,6 +207,71 @@ public sealed class RepairService(
         {
             CryptographicOperations.ZeroMemory(runtimeBytes);
             CryptographicOperations.ZeroMemory(upstreamBytes);
+        }
+    }
+
+    private RepairResult RecoverUnfinished(InstallationLayout layout, QueueStore queue)
+    {
+        TransactionJournal journal;
+        try
+        {
+            journal = new TransactionJournalStore(layout.ActiveJournalPath, currentSid()).Load();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
+        {
+            TrySetHealth(queue, HealthCodes.LocalStateBlocked);
+            return new RepairResult(RepairOutcome.Blocked, "JOURNAL_INVALID");
+        }
+
+        if (journal.Kind != JournalKind.Repair)
+        {
+            TrySetHealth(queue, HealthCodes.RepairPending);
+            return new RepairResult(RepairOutcome.Pending, "JOURNAL_RECOVERY_REQUIRED");
+        }
+
+        if (runningDesktopProcesses().Count > 0)
+        {
+            TrySetHealth(queue, HealthCodes.RepairPending);
+            return new RepairResult(RepairOutcome.Pending, HealthCodes.RepairPending);
+        }
+
+        try
+        {
+            if (string.Equals(journal.Phase, "COMMITTED", StringComparison.Ordinal))
+            {
+                File.Delete(layout.ActiveJournalPath);
+                queue.ClearHealth(HealthCodes.RepairPending, HealthCodes.ConfigConflict);
+                return new RepairResult(RepairOutcome.Healthy, "REPAIR_COMMIT_RECOVERED");
+            }
+
+            if (File.Exists(journal.BackupPath))
+            {
+                var backup = new ProtectedJsonStore<ConfigBackupRecord>(journal.BackupPath, protector).Load();
+                backup.Validate();
+                var currentBytes = File.Exists(backup.ConfigPath) ? File.ReadAllBytes(backup.ConfigPath) : [];
+                var currentHash = Hashing.Sha256Hex(currentBytes);
+                if (!string.Equals(currentHash, journal.ConfigBeforeSha256, StringComparison.Ordinal))
+                {
+                    var runtime = new RuntimeConfigStore(layout.RuntimeConfigPath).Load();
+                    var notify = CodexConfigDocument.Parse(currentBytes).NotifyArgv;
+                    if (notify is null || !InstallPlanner.IsExactBridgeArgv(notify, Path.Combine(layout.Bin, "CodexTelegramBridge.exe")))
+                    {
+                        throw new InvalidOperationException("JOURNAL_CONFIG_CONFLICT");
+                    }
+
+                    new ConfigFileTransaction(protector).RestoreBackup(journal.BackupPath, currentHash);
+                    signalWorker(runtime.MachineId);
+                }
+            }
+
+            File.Delete(layout.ActiveJournalPath);
+            queue.UpsertHealth(HealthCodes.RepairPending, utcNow());
+            return new RepairResult(RepairOutcome.Pending, "REPAIR_ROLLBACK_RECOVERED");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or System.Security.Cryptography.CryptographicException or JsonException)
+        {
+            TrySetHealth(queue, HealthCodes.LocalStateBlocked);
+            return new RepairResult(RepairOutcome.Blocked, "REPAIR_RECOVERY_FAILED");
         }
     }
 

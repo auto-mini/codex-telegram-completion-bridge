@@ -68,6 +68,9 @@ public sealed class InstallPlanner(
             controlPath,
             package.PackageRoot,
             package.ManifestSha256,
+            HashIfExists(layout.TransactionRecordPath),
+            HashIfExists(layout.RuntimeConfigPath),
+            HashIfExists(layout.UpstreamPath),
             $"config-{now:yyyyMMddTHHmmssZ}-{configHash[..12]}.dpapi",
             normalizedAlias,
             running.Count > 0,
@@ -157,4 +160,6 @@ public sealed class InstallPlanner(
         NotifyClassification.HealthyBridge => ["CodexTelegramBridge.exe", "hook"],
         _ => argv is null ? ["<unsupported-handler>"] : ["<unsupported-handler>", $"argc={argv.Count}"],
     };
+
+    private static string? HashIfExists(string path) => File.Exists(path) ? Hashing.Sha256File(path) : null;
 }

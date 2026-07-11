@@ -82,6 +82,11 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
 
     public async Task<WorkerIterationResult> ProcessOneAsync(CancellationToken cancellationToken)
     {
+        if (File.Exists(layout.WorkerStopMarkerPath))
+        {
+            return new WorkerIterationResult(WorkerIterationKind.Blocked);
+        }
+
         RuntimeConfig config;
         try
         {
@@ -302,7 +307,7 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
             return new WorkerIterationResult(WorkerIterationKind.Blocked);
         }
 
-        await EnforceThrottleAsync(now, cancellationToken).ConfigureAwait(false);
+        await EnforceThrottleAsync(cancellationToken).ConfigureAwait(false);
         TelegramCallResult result;
         try
         {
@@ -384,7 +389,7 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
             TextNormalizer.RenderCompletion(pc, normalizedTitle));
     }
 
-    private async Task EnforceThrottleAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task EnforceThrottleAsync(CancellationToken cancellationToken)
     {
         lastNetworkAttemptUtc ??= queue.GetLastNetworkActivityUtc();
         if (lastNetworkAttemptUtc is null)
@@ -392,7 +397,7 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
             return;
         }
 
-        var remaining = TimeSpan.FromSeconds(1) - (now - lastNetworkAttemptUtc.Value);
+        var remaining = TimeSpan.FromSeconds(1) - (utcNow() - lastNetworkAttemptUtc.Value);
         if (remaining > TimeSpan.Zero)
         {
             await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);

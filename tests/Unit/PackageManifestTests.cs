@@ -36,4 +36,22 @@ public sealed class PackageManifestTests
 
         Assert.Throws<InvalidDataException>(() => PackageManifest.LoadAndVerify(temp.Path));
     }
+
+    [Fact]
+    public void Rejects_unlisted_shipped_artifact()
+    {
+        using var temp = new TempDirectory();
+        var bin = Path.Combine(temp.Path, "bin");
+        Directory.CreateDirectory(bin);
+        File.WriteAllText(Path.Combine(bin, "CodexTelegramBridge.exe"), "bridge");
+        File.WriteAllText(Path.Combine(bin, "CodexTelegramCtl.exe"), "ctl");
+        File.WriteAllText(Path.Combine(temp.Path, "unlisted-secret.txt"), "must not ship");
+        File.WriteAllLines(Path.Combine(temp.Path, "manifest.sha256"),
+        [
+            $"{Hashing.Sha256File(Path.Combine(bin, "CodexTelegramBridge.exe"))}  bin/CodexTelegramBridge.exe",
+            $"{Hashing.Sha256File(Path.Combine(bin, "CodexTelegramCtl.exe"))}  bin/CodexTelegramCtl.exe",
+        ], new UTF8Encoding(false));
+
+        Assert.Throws<InvalidDataException>(() => PackageManifest.LoadAndVerify(temp.Path));
+    }
 }

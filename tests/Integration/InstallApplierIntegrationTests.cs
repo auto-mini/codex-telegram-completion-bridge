@@ -72,6 +72,21 @@ public sealed class InstallApplierIntegrationTests
         Assert.False(Directory.Exists(fixture.InstallRoot));
     }
 
+    [Fact]
+    public void Apply_rejects_installation_identity_created_after_plan()
+    {
+        using var fixture = new ApplyFixture();
+        var original = File.ReadAllBytes(fixture.ConfigPath);
+        var layout = new InstallationLayout(fixture.InstallRoot);
+        Directory.CreateDirectory(layout.ConfigDirectory);
+        AtomicFile.WriteUtf8(layout.RuntimeConfigPath, "changed after planning");
+
+        Assert.Throws<InvalidOperationException>(() => fixture.CreateApplier().Apply(fixture.PlanPath));
+
+        Assert.Equal(original, File.ReadAllBytes(fixture.ConfigPath));
+        Assert.False(File.Exists(layout.ActiveJournalPath));
+    }
+
     [Theory]
     [InlineData("STAGED")]
     [InlineData("COMMITTED")]
@@ -337,6 +352,18 @@ public sealed class InstallApplierIntegrationTests
             VendorPath = Path.Combine(VendorRoot, BridgeConstants.VendorExecutableName);
             File.WriteAllText(VendorPath, "vendor-v1");
             File.WriteAllText(ConfigPath, $"# preserve\r\nnotify = [{Quote(VendorPath)}, \"turn-ended\"]\r\nmodel = \"gpt\"\r\n");
+            using (var state = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = Path.Combine(CodexHome, "state_5.sqlite"),
+                Pooling = false,
+            }.ToString()))
+            {
+                state.Open();
+                using var command = state.CreateCommand();
+                command.CommandText = "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT, source TEXT, thread_source TEXT);";
+                command.ExecuteNonQuery();
+            }
+
             var planner = new InstallPlanner(
                 new VendorExecutableValidator(VendorRoot),
                 Protector,
@@ -369,7 +396,7 @@ public sealed class InstallApplierIntegrationTests
             () => CodexHome,
             () => RunningProcesses,
             _ => { },
-            (_, _) => true,
+            (_, _, _) => true,
             () => { },
             fault ?? (_ => { }));
 
@@ -388,7 +415,9 @@ public sealed class InstallApplierIntegrationTests
             Tasks,
             () => now,
             () => CurrentUserContext.Sid,
-            processes ?? (() => RunningProcesses));
+            processes ?? (() => RunningProcesses),
+            _ => { },
+            (_, _, _) => true);
 
         public (InstallPlan Plan, string Path) CreateUpgradePlan(string suffix)
         {

@@ -37,6 +37,9 @@ public sealed record InstallPlan(
     string ControlExecutablePath,
     string PackageRoot,
     string ManifestSha256,
+    string? ExistingInstallationRecordSha256,
+    string? ExistingRuntimeConfigSha256,
+    string? ExistingUpstreamSha256,
     string BackupFileName,
     string? PcAlias,
     bool DesktopProcessesRunning,
@@ -58,6 +61,9 @@ public sealed record InstallPlan(
             !Path.IsPathFullyQualified(PackageRoot) ||
             !IsSha256(ConfigSha256) ||
             !IsSha256(ManifestSha256) ||
+            ExistingInstallationRecordSha256 is not null && !IsSha256(ExistingInstallationRecordSha256) ||
+            ExistingRuntimeConfigSha256 is not null && !IsSha256(ExistingRuntimeConfigSha256) ||
+            ExistingUpstreamSha256 is not null && !IsSha256(ExistingUpstreamSha256) ||
             Path.GetFileName(BackupFileName) != BackupFileName ||
             string.IsNullOrWhiteSpace(BackupFileName) ||
             NotifyClassification == NotifyClassification.Conflict && RedactedNotifyArgv.Count == 0)
@@ -161,7 +167,10 @@ public static class CurrentUserContext
 
     public static void EnsureSupportedHost()
     {
-        if (!OperatingSystem.IsWindows() || RuntimeInformation.OSArchitecture != Architecture.X64)
+        if (!OperatingSystem.IsWindows() ||
+            Environment.OSVersion.Version.Major < 10 ||
+            RuntimeInformation.OSArchitecture != Architecture.X64 ||
+            RuntimeInformation.ProcessArchitecture != Architecture.X64)
         {
             throw new PlatformNotSupportedException("V1 requires x64 Windows 10 or Windows 11.");
         }

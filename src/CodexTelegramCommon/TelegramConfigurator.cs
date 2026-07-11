@@ -39,7 +39,7 @@ public sealed class TelegramConfigurator(
         long? offset = null;
         while (utcNow() < deadline && !cancellationToken.IsCancellationRequested)
         {
-            var updates = await client.GetUpdatesAsync(offset, 20, cancellationToken).ConfigureAwait(false);
+            var updates = await client.GetUpdatesAsync(offset, 10, cancellationToken).ConfigureAwait(false);
             RequireSuccess(updates.Call);
             var values = updates.Value ?? throw new TelegramConfigurationException("GET_UPDATES_RESULT_INVALID");
             if (values.Count > 0)

@@ -4,6 +4,23 @@ namespace CodexTelegramCommon;
 
 public static class BridgeProcessGuard
 {
+    public static bool RequestStopAndWait(InstallationLayout layout, string machineId, TimeSpan timeout)
+    {
+        AtomicFile.WriteUtf8(layout.WorkerStopMarkerPath, "STOP\n");
+        try
+        {
+            WorkerCoordination.SignalExistingOrCreate(machineId);
+            return WaitForWorkersToExit(layout, timeout);
+        }
+        finally
+        {
+            if (File.Exists(layout.WorkerStopMarkerPath))
+            {
+                File.Delete(layout.WorkerStopMarkerPath);
+            }
+        }
+    }
+
     public static bool WaitForWorkersToExit(InstallationLayout layout, TimeSpan timeout)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
@@ -30,6 +47,14 @@ public static class BridgeProcessGuard
         }
 
         return remaining.Count == 0;
+    }
+
+    public static void ClearStopRequest(InstallationLayout layout)
+    {
+        if (File.Exists(layout.WorkerStopMarkerPath))
+        {
+            File.Delete(layout.WorkerStopMarkerPath);
+        }
     }
 
     private static IReadOnlyList<Process> FindWorkers(InstallationLayout layout)

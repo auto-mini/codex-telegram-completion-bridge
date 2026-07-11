@@ -37,7 +37,9 @@ public sealed class UninstallService(
     IScheduledTaskManager tasks,
     Func<DateTimeOffset> utcNow,
     Func<string> currentSid,
-    Func<IReadOnlyList<string>> runningDesktopProcesses)
+    Func<IReadOnlyList<string>> runningDesktopProcesses,
+    Action<string>? signalWorker = null,
+    Func<InstallationLayout, string, TimeSpan, bool>? waitForWorkers = null)
 {
     public static UninstallService CreateProduction() => new(
         new DpapiSecretProtector(),
@@ -45,7 +47,9 @@ public sealed class UninstallService(
         new WindowsScheduledTaskManager(),
         () => DateTimeOffset.UtcNow,
         () => CurrentUserContext.Sid,
-        DesktopProcessGuard.FindRunning);
+        DesktopProcessGuard.FindRunning,
+        WorkerCoordination.SignalExistingOrCreate,
+        BridgeProcessGuard.RequestStopAndWait);
 
     public UninstallResult Run(InstallationLayout layout, bool keepConfigConflict, bool purgeState)
     {
@@ -65,7 +69,7 @@ public sealed class UninstallService(
         var runtimeStore = new RuntimeConfigStore(layout.RuntimeConfigPath);
         if (File.Exists(layout.ActiveJournalPath))
         {
-            throw new InvalidOperationException("JOURNAL_RECOVERY_REQUIRED");
+            return RecoverUnfinished(layout);
         }
 
         var runtime = runtimeStore.Load();
@@ -105,6 +109,12 @@ public sealed class UninstallService(
         {
             tasks.DisableAll();
             runtimeStore.Save(CopyRuntime(runtime, deliveryPaused: true));
+            (signalWorker ?? WorkerCoordination.SignalExistingOrCreate)(runtime.MachineId);
+            if (!(waitForWorkers ?? BridgeProcessGuard.RequestStopAndWait)(layout, runtime.MachineId, TimeSpan.FromSeconds(25)))
+            {
+                throw new InvalidOperationException("WORKER_STILL_RUNNING");
+            }
+
             journalStore.Save(journal);
 
             if (pointsToBridge)
@@ -178,6 +188,54 @@ public sealed class UninstallService(
         }
     }
 
+    private UninstallResult RecoverUnfinished(InstallationLayout layout)
+    {
+        var journal = new TransactionJournalStore(layout.ActiveJournalPath, currentSid()).Load();
+        if (journal.Kind != JournalKind.Uninstall)
+        {
+            throw new InvalidOperationException("JOURNAL_RECOVERY_REQUIRED");
+        }
+
+        var cleanupPath = Path.Combine(layout.StateDirectory, "uninstall-cleanup.dpapi");
+        if (string.Equals(journal.Phase, "COMMITTED", StringComparison.Ordinal) && File.Exists(cleanupPath))
+        {
+            File.Delete(layout.ActiveJournalPath);
+            return new UninstallResult(UninstallOutcome.CleanupRequired, "UNINSTALL_COMMIT_RECOVERED", cleanupPath);
+        }
+
+        if (File.Exists(journal.BackupPath))
+        {
+            var backup = new ProtectedJsonStore<ConfigBackupRecord>(journal.BackupPath, protector).Load();
+            backup.Validate();
+            var currentBytes = File.Exists(backup.ConfigPath) ? File.ReadAllBytes(backup.ConfigPath) : [];
+            var currentHash = Hashing.Sha256Hex(currentBytes);
+            if (!string.Equals(currentHash, journal.ConfigBeforeSha256, StringComparison.Ordinal))
+            {
+                var safeAfter = journal.ConfigAfterSha256 is not null && string.Equals(currentHash, journal.ConfigAfterSha256, StringComparison.Ordinal);
+                if (!safeAfter)
+                {
+                    var upstream = new ProtectedJsonStore<UpstreamRecord>(layout.UpstreamPath, protector).Load();
+                    upstream.ValidateShape();
+                    var currentNotify = CodexConfigDocument.Parse(currentBytes).NotifyArgv;
+                    var expectedNotify = upstream.Kind == UpstreamKind.Absent ? null : upstream.Argv;
+                    safeAfter = SequenceEqual(currentNotify, expectedNotify);
+                }
+
+                if (!safeAfter)
+                {
+                    throw new InvalidOperationException("JOURNAL_CONFIG_CONFLICT");
+                }
+
+                new ConfigFileTransaction(protector).RestoreBackup(journal.BackupPath, currentHash);
+            }
+        }
+
+        tasks.StageDisabled(layout, currentSid(), utcNow());
+        tasks.EnableAll();
+        File.Delete(layout.ActiveJournalPath);
+        return new UninstallResult(UninstallOutcome.Conflict, "UNINSTALL_ROLLBACK_RECOVERED", null);
+    }
+
     private void EnsureDesktopClosed()
     {
         if (runningDesktopProcesses().Count > 0)
@@ -195,6 +253,9 @@ public sealed class UninstallService(
         DeliveryPaused = deliveryPaused,
         AutoRepairVendorNotify = value.AutoRepairVendorNotify,
     };
+
+    private static bool SequenceEqual(IReadOnlyList<string>? left, IReadOnlyList<string>? right) =>
+        left is null ? right is null : right is not null && left.SequenceEqual(right, StringComparer.Ordinal);
 }
 
 public static class CleanupExecutor

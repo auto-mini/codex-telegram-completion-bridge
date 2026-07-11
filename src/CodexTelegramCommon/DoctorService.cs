@@ -178,9 +178,11 @@ public sealed class DoctorService(
 
         if (runtime is not null)
         {
-            var resolution = new CodexStateResolver(runtime.CodexHome).Resolve(Guid.NewGuid().ToString("D"));
-            checks["codex_state_schema"] = resolution.Kind == ResolutionKind.Unsupported ? "UNSUPPORTED" : "COMPATIBLE";
-            if (resolution.Kind == ResolutionKind.Unsupported)
+            var resolver = new CodexStateResolver(runtime.CodexHome);
+            var resolution = resolver.Resolve(Guid.NewGuid().ToString("D"));
+            var compatible = resolver.HasAnyCompatibleDatabase() && resolution.Kind != ResolutionKind.Unsupported;
+            checks["codex_state_schema"] = compatible ? "COMPATIBLE" : "UNSUPPORTED_OR_MISSING";
+            if (!compatible)
             {
                 conditions.Add(HealthCodes.StateSchemaBlocked);
             }
@@ -219,6 +221,15 @@ public sealed class DoctorService(
             checks["active_journal"] = "NONE";
         }
 
+        if (File.Exists(layout.WorkerStopMarkerPath))
+        {
+            checks["worker_stop_marker"] = "PRESENT";
+            conditions.Add(HealthCodes.RepairPending);
+        }
+        else
+        {
+            checks["worker_stop_marker"] = "CLEAR";
+        }
         IReadOnlyList<DoctorTaskStatus> taskStatuses;
         try
         {

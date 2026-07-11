@@ -30,9 +30,9 @@ New-Item -ItemType Directory -Path (Join-Path $staging "docs") -Force | Out-Null
 
 $commonProperties = @(
     "-c", "Release",
-    "-r", "win-x64",
     "--self-contained", "true",
-    "--locked-mode",
+    "-p:RestoreLockedMode=true",
+    "-p:RuntimeIdentifier=win-x64",
     "-p:PublishSingleFile=true",
     "-p:IncludeNativeLibrariesForSelfExtract=true",
     "-p:DebugType=None",

@@ -33,6 +33,12 @@ public sealed class VendorExecutableValidator(string allowedRoot)
 
         try
         {
+            var originalAttributes = File.GetAttributes(executable);
+            if ((originalAttributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
+            {
+                return VendorValidationResult.Failure("VENDOR_FILE_UNSAFE");
+            }
+
             var finalRoot = ResolveFinalPath(AllowedRoot, isDirectory: true);
             var finalExecutable = ResolveFinalPath(executable, isDirectory: false);
             var prefix = finalRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;

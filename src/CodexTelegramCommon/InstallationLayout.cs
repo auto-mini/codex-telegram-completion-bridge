@@ -15,6 +15,7 @@ public sealed record InstallationLayout(string Root)
     public string DatabasePath => Path.Combine(StateDirectory, "bridge-state.sqlite");
     public string LocalStateBlockedMarkerPath => Path.Combine(StateDirectory, "local-state.blocked");
     public string QuickCheckStampPath => Path.Combine(StateDirectory, "last-quick-check.utc");
+    public string WorkerStopMarkerPath => Path.Combine(StateDirectory, "worker-stop.request");
     public string LogPath => Path.Combine(LogsDirectory, "bridge.log");
     public string ManifestPath => Path.Combine(Root, "manifest.sha256");
     public string TransactionRecordPath => Path.Combine(Root, "transaction-final.json");
