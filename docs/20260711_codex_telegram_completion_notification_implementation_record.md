@@ -80,6 +80,7 @@
 - The previously exercised canary.9 hash passed a direct control/bridge launch and an isolated Task Scheduler probe under the same policy.
 - A transactional rollback to canary.9 completed with matching package/binary hashes, live capture and Telegram credentials preserved.
 - After rollback, Repair completed with result 0, Drain launched successfully, online doctor returned `OK`, and no new bridge Code Integrity block was recorded.
+- The first post-rollback live completion was received in Telegram and the user observed no Windows blocking notification. A final check recorded 12 sent completions, no active doctor condition, and zero post-rollback Code Integrity blocks.
 - Smart App Control was not disabled and no Defender, firewall, certificate-store, or application-control exception was added.
 - Multi-PC rollout is blocked until a trusted production-signing path is selected and every shipped executable is signed and requalified.
 
