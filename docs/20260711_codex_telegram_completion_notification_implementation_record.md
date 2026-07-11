@@ -70,12 +70,27 @@
   - short titles remain byte-for-byte unchanged in the rendered line
   - the full normalized title remains only in the DPAPI-encrypted delivery envelope for verification and retry stability
   - family-emoji grapheme boundaries and the full-envelope/short-message split have dedicated unit and integration coverage
+  - deployment is deferred because Smart App Control blocks the new unsigned executable hash; the active canary.9 rollback still displays the longer title
+
+## Smart App Control incident and rollback
+
+- canary.11 applied transactionally, but Windows Code Integrity events 3033/3077 and Smart App Control detail events blocked the new unsigned bridge hash.
+- Microsoft Defender reported no active or known threat; firewall rules and Mark-of-the-Web streams were absent.
+- Both scheduled tasks and a direct canary.11 bridge launch were blocked, so the build was not considered operational even though retained state and credentials remained healthy.
+- The previously exercised canary.9 hash passed a direct control/bridge launch and an isolated Task Scheduler probe under the same policy.
+- A transactional rollback to canary.9 completed with matching package/binary hashes, live capture and Telegram credentials preserved.
+- After rollback, Repair completed with result 0, Drain launched successfully, online doctor returned `OK`, and no new bridge Code Integrity block was recorded.
+- Smart App Control was not disabled and no Defender, firewall, certificate-store, or application-control exception was added.
+- Multi-PC rollout is blocked until a trusted production-signing path is selected and every shipped executable is signed and requalified.
 
 ## Canary package
 
-- Release: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
-- `manifest.sha256` outer SHA-256: `e2273d72a6aab1d0dbf6ccebf33cb2333d7d81ab4905b34efd6a039731e377d5`
+- Latest built candidate: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
+- Candidate `manifest.sha256` outer SHA-256: `e2273d72a6aab1d0dbf6ccebf33cb2333d7d81ab4905b34efd6a039731e377d5`
 - Rebuild reproducibility check: PASS — canary.10 and canary.11 produced the same outer manifest hash.
+- Active current-PC rollback build: `CodexTelegramBridge-1.0.0-canary.9-win-x64`
+- Active rollback outer SHA-256: `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`
+- canary.11 is quarantined from deployment until it has a valid Authenticode signature chaining to a CA in the Microsoft Trusted Root Program.
 - Package contents are fully covered by the inner manifest; unlisted immutable artifacts fail verification.
 - The sibling outer-hash record must be retained separately from the release directory.
 
@@ -106,9 +121,9 @@
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PASS |
-| Current-PC live canary | IN PROGRESS — six prior sends passed; soak clock resets after canary.11 display update |
+| Current-PC live canary | IN PROGRESS — restored to canary.9; soak clock resets after rollback |
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 48-hour soak | PENDING |
-| Additional-PC release | BLOCKED by preceding gates |
+| Additional-PC release | BLOCKED by trusted code signing and preceding gates |
 
 No live Telegram delivery or additional-PC rollout is authorized by this record until its preceding gates pass.

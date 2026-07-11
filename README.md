@@ -4,6 +4,8 @@ Windows sidecar that preserves the existing Codex Computer Use notifier and send
 
 Telegram messages show at most the first 32 Unicode grapheme clusters of a task title followed by `…`; short titles are unchanged. The longer normalized title remains only in the local encrypted envelope for identity verification and is never written to operational logs.
 
+> **Smart App Control:** development canaries are currently unsigned. Windows 11 Smart App Control can block every new executable hash, including scheduled-task launches. Do not disable Smart App Control or add security exclusions. The 32-grapheme build and any multi-PC release require Authenticode signatures chaining to a CA in the Microsoft Trusted Root Program before deployment. The current canary PC is temporarily running the previously trusted canary.9 build, which does not include the 32-grapheme display refinement.
+
 The frozen architecture and rollout gates are in [`docs/20260711_codex_telegram_completion_notification_blueprint.md`](docs/20260711_codex_telegram_completion_notification_blueprint.md).
 
 ## Development
