@@ -11,6 +11,7 @@
   - `779751a` — transactional install and operations control
   - `cdf6190` — self-contained Windows packaging
   - `35e8e87` — recovery and reproducible-publish hardening
+  - `bfcb994` — verified Computer Use wrapper compatibility and duplicate-upstream suppression
 - SDK used: .NET SDK 8.0.422
 - Runtime target: self-contained `win-x64`, trimming disabled
 
