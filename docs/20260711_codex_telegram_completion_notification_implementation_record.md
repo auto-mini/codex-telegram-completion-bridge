@@ -55,6 +55,10 @@
   - user observed exactly one Telegram completion notification
   - bridge state contains one current-task live event in `sent`, with zero delivery retries
   - post-send online doctor is `OK`, last-success time is present, and operational logs contain neither PC name nor task title
+- First Android Remote live completion: PASS
+  - user confirmed the request originated from Android Remote and observed its Telegram completion notification
+  - bridge state contains a second distinct current-task live event in `sent`, again with zero delivery retries
+  - aggregate live result is two requested completions, two sends, zero missing, and zero observed duplicates
 
 ## Canary package
 
@@ -92,7 +96,7 @@
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PASS |
 | Current-PC live canary | IN PROGRESS — first sequential completion passed |
-| Android Remote canary | PENDING |
+| Android Remote canary | IN PROGRESS — first Remote completion passed |
 | 48-hour soak | PENDING |
 | Additional-PC release | BLOCKED by preceding gates |
 
