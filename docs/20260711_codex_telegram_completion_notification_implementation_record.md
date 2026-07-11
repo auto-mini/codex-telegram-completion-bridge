@@ -59,6 +59,11 @@
   - user confirmed the request originated from Android Remote and observed its Telegram completion notification
   - bridge state contains a second distinct current-task live event in `sent`, again with zero delivery retries
   - aggregate live result is two requested completions, two sends, zero missing, and zero observed duplicates
+- Expanded live canary observations: PASS so far
+  - user confirmed delivery while Windows was locked, from an additional task, and from a previously opened task
+  - observed end-to-end latency is approximately 3–10 seconds, within the provisional p95 10-second / max 30-second target
+  - latest online doctor is `OK` with six sent completions, zero inflight, zero quarantine, and no active health condition
+  - four earlier non-current, immutable-shadow events remain pending `THREAD_NOT_PERSISTED`; they cannot be sent and remain evidence to recheck at the 12/24/48-hour gates
 
 ## Canary package
 
@@ -95,8 +100,8 @@
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PASS |
-| Current-PC live canary | IN PROGRESS — first sequential completion passed |
-| Android Remote canary | IN PROGRESS — first Remote completion passed |
+| Current-PC live canary | IN PROGRESS — six total live sends; locked/new/old task paths observed |
+| Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 48-hour soak | PENDING |
 | Additional-PC release | BLOCKED by preceding gates |
 
