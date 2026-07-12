@@ -41,6 +41,44 @@ public static class WindowsAclManager
         new FileInfo(path).SetAccessControl(security);
     }
 
+    public static void NormalizeTreeOwnership(string root, string userSid)
+    {
+        CurrentUserContext.EnsureSupportedHost();
+        var rootResult = VerifyRoot(root, userSid);
+        if (!rootResult.IsValid)
+        {
+            throw new UnauthorizedAccessException(rootResult.OperationCode);
+        }
+
+        var expectedUser = ParseSid(userSid);
+        var entries = EnumerateTreeWithoutFollowingReparsePoints(root);
+        if (entries.Any(entry => entry.IsReparsePoint))
+        {
+            throw new UnauthorizedAccessException("INSTALL_REPARSE_POINT_BLOCKED");
+        }
+
+        foreach (var entry in entries)
+        {
+            FileSystemSecurity security = entry.IsDirectory
+                ? new DirectoryInfo(entry.Path).GetAccessControl(AccessControlSections.Owner)
+                : new FileInfo(entry.Path).GetAccessControl(AccessControlSections.Owner);
+            if (expectedUser.Equals(security.GetOwner(typeof(SecurityIdentifier))))
+            {
+                continue;
+            }
+
+            security.SetOwner(expectedUser);
+            if (entry.IsDirectory)
+            {
+                new DirectoryInfo(entry.Path).SetAccessControl((DirectorySecurity)security);
+            }
+            else
+            {
+                new FileInfo(entry.Path).SetAccessControl((FileSecurity)security);
+            }
+        }
+    }
+
     public static AclVerificationResult VerifyRoot(string path, string userSid)
     {
         if (!Directory.Exists(path))
@@ -50,6 +88,11 @@ public static class WindowsAclManager
 
         try
         {
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                return new AclVerificationResult(false, "INSTALL_REPARSE_POINT_BLOCKED");
+            }
+
             var expectedUser = ParseSid(userSid);
             var security = new DirectoryInfo(path).GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
             if (!expectedUser.Equals(security.GetOwner(typeof(SecurityIdentifier))) || !security.AreAccessRulesProtected)
@@ -86,16 +129,16 @@ public static class WindowsAclManager
         try
         {
             var expectedUser = ParseSid(userSid);
-            foreach (var path in Directory.EnumerateFileSystemEntries(root, "*", SearchOption.AllDirectories))
+            foreach (var entry in EnumerateTreeWithoutFollowingReparsePoints(root))
             {
-                if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                if (entry.IsReparsePoint)
                 {
                     return new AclVerificationResult(false, "INSTALL_REPARSE_POINT_BLOCKED");
                 }
 
-                FileSystemSecurity security = Directory.Exists(path)
-                    ? new DirectoryInfo(path).GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access)
-                    : new FileInfo(path).GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
+                FileSystemSecurity security = entry.IsDirectory
+                    ? new DirectoryInfo(entry.Path).GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access)
+                    : new FileInfo(entry.Path).GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
                 if (!expectedUser.Equals(security.GetOwner(typeof(SecurityIdentifier))))
                 {
                     return new AclVerificationResult(false, "INSTALL_DESCENDANT_OWNER_INVALID");
@@ -141,6 +184,30 @@ public static class WindowsAclManager
     private static bool IsExpectedSid(IdentityReference identity, SecurityIdentifier user) =>
         user.Equals(identity) || SystemSid.Equals(identity);
 
+    private static IReadOnlyList<TreeEntry> EnumerateTreeWithoutFollowingReparsePoints(string root)
+    {
+        var entries = new List<TreeEntry>();
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            foreach (var path in Directory.EnumerateFileSystemEntries(directory, "*", SearchOption.TopDirectoryOnly))
+            {
+                var attributes = File.GetAttributes(path);
+                var isDirectory = (attributes & FileAttributes.Directory) != 0;
+                var isReparsePoint = (attributes & FileAttributes.ReparsePoint) != 0;
+                entries.Add(new TreeEntry(path, isDirectory, isReparsePoint));
+                if (isDirectory && !isReparsePoint)
+                {
+                    pending.Push(path);
+                }
+            }
+        }
+
+        return entries;
+    }
+
     private static SecurityIdentifier ParseSid(string value)
     {
         try
@@ -152,4 +219,6 @@ public static class WindowsAclManager
             throw new InvalidDataException("Windows user SID is invalid.", exception);
         }
     }
+
+    private sealed record TreeEntry(string Path, bool IsDirectory, bool IsReparsePoint);
 }
