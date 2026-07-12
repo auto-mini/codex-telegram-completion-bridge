@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <directory path="bin">
+      <pe-file-set
+          product-name="Codex Telegram Completion Bridge"
+          product-version="${version}"
+          file-version="${version}"
+          company-name="Codex Telegram Completion Bridge contributors"
+          copyright="Copyright (c) 2026 Codex Telegram Completion Bridge contributors">
+        <include path="CodexTelegramBridge.exe" original-filename="CodexTelegramBridge.dll" />
+        <include path="CodexTelegramCtl.exe" original-filename="CodexTelegramCtl.dll" />
+        <for-each>
+          <authenticode-sign />
+        </for-each>
+      </pe-file-set>
+    </directory>
+    <directory path="scripts">
+      <powershell-file path="install.ps1">
+        <authenticode-sign />
+      </powershell-file>
+      <powershell-file path="uninstall.ps1">
+        <authenticode-sign />
+      </powershell-file>
+    </directory>
+  </zip-file>
+</artifact-configuration>

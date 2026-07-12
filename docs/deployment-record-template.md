@@ -1,0 +1,24 @@
+# Codex Telegram Bridge deployment record
+
+- Release version:
+- Host PC label:
+- Windows architecture:
+- Install timestamp (UTC):
+- Machine GUID prefix:
+- `manifest.sha256` outer SHA-256:
+- Release ZIP SHA-256:
+- GitHub provenance attestation result:
+- Signature status (`UNSIGNED PREVIEW` or `SIGNED`):
+- Signer certificate thumbprint (signed releases only):
+- Signer subject / trusted root (signed releases only):
+- Authenticode and timestamp verification result:
+- Smart App Control / Code Integrity result:
+- Install plan SHA-256:
+- Shadow gate result:
+- Live local gate result:
+- Android Remote gate result:
+- Cancellation/subagent result:
+- Existing upstream result:
+- 48-hour soak start/end:
+- Final doctor result:
+- Notes (no token, prompt, response, title, or path secrets):

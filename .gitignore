@@ -1,0 +1,16 @@
+.vs/
+.idea/
+.vscode/
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+*.user
+*.suo
+*.tmp
+*.log
+*.dpapi
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+install-plan*.json
