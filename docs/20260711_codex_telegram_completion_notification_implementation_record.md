@@ -92,14 +92,15 @@
 ## Code-signing decision and readiness
 
 - Microsoft Artifact Signing Public Trust was rejected because its current regional prerequisite excludes individuals and organizations based in South Korea.
-- The selected path is a one-year Certum Standard Code Signing in the Cloud certificate issued to an individual. No order, payment, account mutation, or identity-document submission has been performed.
-- Purchase remains a user boundary because the paid validation process requires identity/address evidence and the verified legal name becomes public Authenticode publisher data.
-- The alternative EV tier is unnecessary for this user-mode application; the selected Standard product supplies the required Microsoft-trusted RSA code-signing chain.
-- The release pipeline now has a mandatory signed mode that externalizes the native SQLite DLL to avoid unsigned temporary extraction, signs both executables, that DLL, and both deployment scripts before hashing, requires timestamps, and emits a manifest-covered `signing-record.json` containing pre-sign and signed hashes.
-- Certificate preflight fails closed on private-key access, validity, RSA key strength, Code Signing EKU, key usage, online revocation, or a chain outside the SHA-256-pinned Certum Code Signing CA and official RSA roots.
-- Signed packages are revalidated during install planning, apply, staging, and doctor through the Windows Authenticode policy provider, including the selected leaf signer and timestamp countersigner fingerprints.
-- Microsoft SignTool is restored from the locked `Microsoft.Windows.SDK.BuildTools` 10.0.26100.7705 NuGet package instead of installing the full Windows SDK.
-- The exact purchase/activation/build/qualification procedure is frozen in `docs/code-signing-runbook.md`.
+- The earlier paid Certum path was abandoned before any order, payment, account mutation, or identity-document submission.
+- The selected path is a public GitHub repository followed by an application for free OSS signing through SignPath.io with a SignPath Foundation certificate.
+- SignPath requires an OSI-approved license, a public and maintained source/build relationship, documented privacy and system changes, uninstall support, explicit roles, multi-factor authentication, manual signing approval, and an already released artifact in the shape to be signed.
+- The initial public artifact is therefore an explicitly unsigned preview. It must not replace the verified local canary and must not instruct users to bypass Windows protections.
+- Public release preparation adds the MIT license, privacy/security/contribution policies, the required code-signing policy language, GitHub-hosted CI, secret and dependency scanning, locked restore, build provenance, and a reviewed SignPath artifact configuration.
+- NuGet audit found the bundled SQLite native package affected by a high-severity advisory. The package was removed; the Windows-only application now uses the Windows-serviced and Microsoft-signed `winsqlite3.dll` instead.
+- SignPath will sign only the two project executables and the two project deployment scripts. No upstream binary will be shipped under the project signature.
+- Exact SignPath organization/project/policy slugs, API credentials, certificate identity, and signed-package verification are deliberately deferred until Foundation acceptance; they must not be guessed.
+- The current public policy and activation gates are in `docs/code-signing-policy.md`.
 
 ## Canary package
 
@@ -142,6 +143,6 @@
 | Current-PC live canary | IN PROGRESS — restored to canary.9; soak clock resets after rollback |
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 48-hour soak | PENDING |
-| Additional-PC release | BLOCKED by certificate purchase/identity activation, signed-candidate qualification, and preceding gates |
+| Additional-PC release | BLOCKED by public preview, SignPath Foundation acceptance/configuration, signed-candidate qualification, and preceding gates |
 
 The restored canary.9 installation may remain live on the current PC. No signed-candidate live apply or additional-PC rollout is authorized until its preceding gates pass.
