@@ -24,12 +24,13 @@ The public-release preparation passed:
 
 - locked NuGet restore;
 - Release build with zero warnings and zero errors;
-- 81 unit tests and 82 integration tests;
+- 81 unit tests and 83 integration tests;
 - a NuGet audit with no known vulnerable packages;
 - Gitleaks scans of the working tree and private development history with no detected secret;
 - PowerShell, XML, GitHub Actions, formatting, and whitespace validation;
 - self-contained Windows x64 publication with uniform `0.1.0.0` product/file metadata;
 - confirmation that no native `e_sqlite3.dll` is bundled;
+- installation-tree owner normalization and ACL revalidation for elevated Windows installer processes;
 - two independent builds of the same version producing the same outer manifest hash;
 - complete inner-manifest hash verification and release-ZIP round-trip verification; and
 - successful creation of a read-only, applicable installation plan without applying it.

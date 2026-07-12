@@ -167,6 +167,19 @@ public sealed class InstallApplier(
                 throw new InvalidDataException("LOCAL_STATE_QUICK_CHECK_FAILED");
             }
 
+            void EnsureInstallationAcl()
+            {
+                try
+                {
+                    NormalizeAndVerifyInstallationTree(layout, plan.UserSid);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    queue.UpsertHealth(HealthCodes.InstallAclBlocked, utcNow());
+                    throw;
+                }
+            }
+
             Advance("STAGED");
 
             var configBytes = File.Exists(plan.ConfigPath) ? File.ReadAllBytes(plan.ConfigPath) : [];
@@ -236,12 +249,7 @@ public sealed class InstallApplier(
             EnsureDesktopClosed();
             Advance("CONFIG_COMMITTED", configEdit.AfterSha256);
 
-            var aclResult = WindowsAclManager.VerifyTree(layout.Root, plan.UserSid);
-            if (!aclResult.IsValid)
-            {
-                queue.UpsertHealth(HealthCodes.InstallAclBlocked, utcNow());
-                throw new UnauthorizedAccessException(aclResult.OperationCode);
-            }
+            EnsureInstallationAcl();
 
             tasks.EnableAll();
             var statuses = tasks.GetStatuses();
@@ -276,6 +284,7 @@ public sealed class InstallApplier(
             installationRecord.Validate();
             AtomicFile.WriteUtf8(layout.TransactionRecordPath, JsonSerializer.Serialize(installationRecord, JsonDefaults.Options));
             Advance("COMMITTED");
+            EnsureInstallationAcl();
             packageRollback.Cleanup();
             File.Delete(layout.ActiveJournalPath);
             return new InstallApplyResult(runtime.MachineId, layout.Root, configEdit.AfterSha256, previousRuntimeConfig is not null);
@@ -340,6 +349,7 @@ public sealed class InstallApplier(
                 throw new InvalidDataException("COMMITTED_JOURNAL_RECORD_INVALID");
             }
 
+            NormalizeAndVerifyInstallationTree(layout, currentSid());
             PackageRollback.TryLoad(layout, journal.TransactionId)?.Cleanup();
             BridgeProcessGuard.ClearStopRequest(layout);
             File.Delete(layout.ActiveJournalPath);
@@ -389,12 +399,7 @@ public sealed class InstallApplier(
         }
 
         packageRollback?.Cleanup();
-        if (previousInstallationWasActive)
-        {
-            tasks.StageDisabled(layout, currentSid(), utcNow());
-            tasks.EnableAll();
-        }
-        else if (File.Exists(layout.TransactionRecordPath))
+        if (!previousInstallationWasActive && File.Exists(layout.TransactionRecordPath))
         {
             try
             {
@@ -407,6 +412,15 @@ public sealed class InstallApplier(
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
             {
             }
+        }
+        if (Directory.Exists(layout.Root))
+        {
+            NormalizeAndVerifyInstallationTree(layout, currentSid());
+        }
+        if (previousInstallationWasActive)
+        {
+            tasks.StageDisabled(layout, currentSid(), utcNow());
+            tasks.EnableAll();
         }
         BridgeProcessGuard.ClearStopRequest(layout);
         File.Delete(layout.ActiveJournalPath);
@@ -581,9 +595,13 @@ public sealed class InstallApplier(
                     Directory.Delete(full, recursive: true);
                 }
             }
-            else if (tasksStaged && wasUpgrade)
+            else
             {
-                tasks.EnableAll();
+                NormalizeAndVerifyInstallationTree(layout, plan.UserSid);
+                if (tasksStaged && wasUpgrade)
+                {
+                    tasks.EnableAll();
+                }
             }
 
             if (File.Exists(layout.ActiveJournalPath))
@@ -611,6 +629,16 @@ public sealed class InstallApplier(
         else
         {
             AtomicFile.WriteBytes(path, content);
+        }
+    }
+
+    private static void NormalizeAndVerifyInstallationTree(InstallationLayout layout, string userSid)
+    {
+        WindowsAclManager.NormalizeTreeOwnership(layout.Root, userSid);
+        var acl = WindowsAclManager.VerifyTree(layout.Root, userSid);
+        if (!acl.IsValid)
+        {
+            throw new UnauthorizedAccessException(acl.OperationCode);
         }
     }
 
