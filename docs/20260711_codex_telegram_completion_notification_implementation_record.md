@@ -115,6 +115,8 @@
 - Independent post-download verification passed for the ZIP hash, outer and inner manifests, the declared unsigned Authenticode state, and the GitHub build-provenance attestation.
 - The SignPath Foundation application form was inspected but not submitted. It requires project-reputation evidence plus the applicant's real name, email, Code of Conduct acceptance, and consent to personal-data processing. The new repository does not yet have an honest established-use reputation claim, and the personal fields and consents must be supplied directly by the applicant.
 - The application draft should use `Individual maintainer(s)`, `GitHub Actions`, and `AI / LLM tools` with `ChatGPT / OpenAI Codex` as the exact discovery source, unless the applicant provides different truthful information.
+- Dependabot's first unrestricted grouped update proposed two .NET 8-to-10 production-package upgrades together with a test SDK update. That PR was closed without merge; replacement draft PR `#3` limits routine NuGet version updates to minor and patch releases while leaving security updates enabled.
+- Draft PR `#3` passed the full 165-test CI, dependency review, Gitleaks, packaging smoke test, NuGet audit, and CodeQL. It remains deliberately unmerged pending normal review of the public-repository maintenance policy.
 
 ## Canary package
 
