@@ -113,8 +113,10 @@
 - Release ZIP SHA-256: `cff0a45d16f4e4be54979aabf4eae6687a76f7ddb89a5c3d3b202314b3875516`.
 - Outer manifest SHA-256: `9c7dc2121ece038eb5bab1e6ecfd3d9094d5c592f990a895deb0c48fd0ec52bc`.
 - Independent post-download verification passed for the ZIP hash, outer and inner manifests, the declared unsigned Authenticode state, and the GitHub build-provenance attestation.
-- The SignPath Foundation application form was inspected but not submitted. It requires project-reputation evidence plus the applicant's real name, email, Code of Conduct acceptance, and consent to personal-data processing. The new repository does not yet have an honest established-use reputation claim, and the personal fields and consents must be supplied directly by the applicant.
-- The application draft should use `Individual maintainer(s)`, `GitHub Actions`, and `AI / LLM tools` with `ChatGPT / OpenAI Codex` as the exact discovery source, unless the applicant provides different truthful information.
+- The SignPath Foundation application was submitted on 2026-07-12 at approximately 16:57 KST. The form returned `Form submitted` and `Thank you, we'll be in touch soon.`
+- The application truthfully stated that the project is new and has no public-adoption claim. It supplied the public repository, unsigned review release, 165-test CI, NuGet audit, Gitleaks, CodeQL, GitHub build-provenance, and maintainer-controlled live-canary results as trust evidence.
+- The applicant directly supplied the required account identity/contact fields and accepted the required Code of Conduct and personal-data-processing terms. Optional marketing communications were left unchecked. No applicant name or email is retained in this repository or implementation record.
+- Submitted classifications were `Individual maintainer(s)`, `GitHub Actions`, and `AI / LLM tools`, with `ChatGPT / OpenAI Codex` as the exact discovery source. Application status is pending SignPath Foundation review.
 - Dependabot's first unrestricted grouped update proposed two .NET 8-to-10 production-package upgrades together with a test SDK update. That PR was closed without merge; replacement draft PR `#3` limits routine NuGet version updates to minor and patch releases while leaving security updates enabled.
 - Draft PR `#3` passed the full 165-test CI, dependency review, Gitleaks, packaging smoke test, NuGet audit, and CodeQL. It remains deliberately unmerged pending normal review of the public-repository maintenance policy.
 
