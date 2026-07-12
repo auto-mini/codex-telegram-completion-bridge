@@ -118,6 +118,14 @@
 - Dependabot's first unrestricted grouped update proposed two .NET 8-to-10 production-package upgrades together with a test SDK update. That PR was closed without merge; replacement draft PR `#3` limits routine NuGet version updates to minor and patch releases while leaving security updates enabled.
 - Draft PR `#3` passed the full 165-test CI, dependency review, Gitleaks, packaging smoke test, NuGet audit, and CodeQL. It remains deliberately unmerged pending normal review of the public-repository maintenance policy.
 
+## Two-PC deployment scope
+
+- The intended deployment scope is exactly two PCs owned and controlled by the user: the current canary PC and one additional PC. No public end-user or mass binary rollout is planned.
+- The smaller scope reduces rollout work but does not remove the current PC's Windows trust requirement: Smart App Control already blocked the newer unsigned build that implements the 32-grapheme Telegram title display.
+- Title shortening remains a required final feature. Canary.9 (outer manifest SHA-256 `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`) is only the temporary soak and rollback build; its longer title display is not the accepted final state.
+- The default path is to complete the current-PC soak, obtain a Trusted Root Program signature through SignPath or another approved provider, qualify the signed title-shortening build on the current PC, and only then install that identical signed package on the second PC.
+- A temporary canary.9 installation on the second PC is not part of the default plan because it would create avoidable duplicate rollout work and preserve the display defect. Smart App Control must not be changed or bypassed on either PC.
+
 ## Canary package
 
 - Latest built candidate: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
@@ -159,6 +167,7 @@
 | Current-PC live canary | IN PROGRESS — restored to canary.9; soak clock resets after rollback |
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 48-hour soak | PENDING |
-| Additional-PC release | BLOCKED by public preview, SignPath Foundation acceptance/configuration, signed-candidate qualification, and preceding gates |
+| Signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration and signed-candidate qualification on the current PC |
+| One additional PC | PENDING until the identical signed title-shortening package passes the current-PC gate |
 
-The restored canary.9 installation may remain live on the current PC. No signed-candidate live apply or additional-PC rollout is authorized until its preceding gates pass.
+The restored canary.9 installation may remain live on the current PC only as the stable pre-signing canary. Final completion requires the 32-grapheme title build to pass under unchanged Windows protection and then qualify on the one additional PC.
