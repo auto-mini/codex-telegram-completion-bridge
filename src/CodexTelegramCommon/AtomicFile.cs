@@ -32,6 +32,7 @@ public static class AtomicFile
             }
 
             prepareTemporary?.Invoke(temporary);
+            WindowsAclManager.NormalizeFileOwnership(temporary, CurrentUserContext.Sid);
 
             if (File.Exists(fullPath))
             {
