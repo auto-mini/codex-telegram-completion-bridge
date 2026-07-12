@@ -6,9 +6,11 @@
 - Install timestamp (UTC):
 - Machine GUID prefix:
 - `manifest.sha256` outer SHA-256:
-- `signing-record.json` SHA-256 (signed releases only):
+- Release ZIP SHA-256:
+- GitHub provenance attestation result:
+- Signature status (`UNSIGNED PREVIEW` or `SIGNED`):
 - Signer certificate thumbprint (signed releases only):
-- Signing CA / trusted root SHA-256 (signed releases only):
+- Signer subject / trusted root (signed releases only):
 - Authenticode and timestamp verification result:
 - Smart App Control / Code Integrity result:
 - Install plan SHA-256:

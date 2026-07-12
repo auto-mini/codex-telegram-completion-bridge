@@ -1,0 +1,9 @@
+/.github/CODEOWNERS @auto-mini
+/.github/workflows/ @auto-mini
+/.signpath/ @auto-mini
+/Directory.Build.props @auto-mini
+/Directory.Packages.props @auto-mini
+/global.json @auto-mini
+/scripts/package.ps1 @auto-mini
+/scripts/install.ps1 @auto-mini
+/scripts/uninstall.ps1 @auto-mini

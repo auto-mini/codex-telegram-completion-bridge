@@ -152,7 +152,7 @@ public sealed class InstallApplier(
 
             tasks.StageDisabled(layout, plan.UserSid, utcNow());
             tasksStaged = true;
-            var package = PackageManifest.LoadAndVerify(plan.PackageRoot, verifyAuthenticodeOnline: true);
+            var package = PackageManifest.LoadAndVerify(plan.PackageRoot);
             packageRollback = new PackageStager().StageAndCommit(
                 package,
                 layout,
@@ -473,7 +473,7 @@ public sealed class InstallApplier(
         EnsureOptionalFileHash(expectedLayout.RuntimeConfigPath, plan.ExistingRuntimeConfigSha256, "RUNTIME_CONFIG_CHANGED");
         EnsureOptionalFileHash(expectedLayout.UpstreamPath, plan.ExistingUpstreamSha256, "UPSTREAM_STATE_CHANGED");
 
-        var package = PackageManifest.LoadAndVerify(plan.PackageRoot, verifyAuthenticodeOnline: true);
+        var package = PackageManifest.LoadAndVerify(plan.PackageRoot);
         if (!string.Equals(package.ManifestSha256, plan.ManifestSha256, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("PACKAGE_CHANGED");

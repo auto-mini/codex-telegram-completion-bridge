@@ -70,7 +70,7 @@ public sealed class DoctorService(
         {
             var manifest = PackageManifest.LoadAndVerify(layout.Root, allowInstalledMutableFiles: true);
             checks["package_manifest"] = $"OK_{manifest.Entries.Count}";
-            checks["package_authenticode"] = manifest.IsAuthenticodeSigned ? "VALID_CACHED" : "UNSIGNED";
+            checks["package_authenticode"] = "UNSIGNED";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
         {

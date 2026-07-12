@@ -9,6 +9,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <Product>Codex Telegram Completion Bridge</Product>
+    <Company>Codex Telegram Completion Bridge contributors</Company>
+    <Description>Completion-only Telegram notifications for Codex tasks on Windows.</Description>
+    <Copyright>Copyright (c) 2026 Codex Telegram Completion Bridge contributors</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' != ''">$(MSBuildProjectDirectory)\packages.$(RuntimeIdentifier).lock.json</NuGetLockFilePath>
   </PropertyGroup>
