@@ -28,7 +28,7 @@ public sealed class InstallPlanner(
     {
         ensureSupportedHost();
         var now = utcNow();
-        var package = PackageManifest.LoadAndVerify(options.PackageRoot);
+        var package = PackageManifest.LoadAndVerify(options.PackageRoot, verifyAuthenticodeOnline: true);
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(
             options.InstallationRoot ?? InstallationLayout.DefaultForCurrentUser().Root));
         var layout = new InstallationLayout(root);

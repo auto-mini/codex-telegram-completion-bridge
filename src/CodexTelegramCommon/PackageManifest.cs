@@ -9,8 +9,13 @@ public sealed class PackageManifest(string packageRoot, IReadOnlyList<ManifestEn
     public string PackageRoot { get; } = Path.GetFullPath(packageRoot);
     public IReadOnlyList<ManifestEntry> Entries { get; } = entries;
     public string ManifestSha256 { get; } = manifestSha256;
+    public bool IsAuthenticodeSigned => Entries.Any(entry =>
+        string.Equals(entry.RelativePath, PackageAuthenticodeVerifier.SigningRecordPath, StringComparison.OrdinalIgnoreCase));
 
-    public static PackageManifest LoadAndVerify(string packageRoot, bool allowInstalledMutableFiles = false)
+    public static PackageManifest LoadAndVerify(
+        string packageRoot,
+        bool allowInstalledMutableFiles = false,
+        bool verifyAuthenticodeOnline = false)
     {
         var root = Path.GetFullPath(packageRoot);
         var manifestPath = Path.Combine(root, "manifest.sha256");
@@ -18,6 +23,7 @@ public sealed class PackageManifest(string packageRoot, IReadOnlyList<ManifestEn
         var entries = Parse(bytes);
         var manifest = new PackageManifest(root, entries, Hashing.Sha256Hex(bytes));
         manifest.VerifyFiles(allowInstalledMutableFiles);
+        PackageAuthenticodeVerifier.VerifyIfPresent(manifest, verifyAuthenticodeOnline);
         return manifest;
     }
 

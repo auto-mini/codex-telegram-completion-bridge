@@ -6,6 +6,8 @@ Telegram messages show at most the first 32 Unicode grapheme clusters of a task 
 
 > **Smart App Control:** development canaries are currently unsigned. Windows 11 Smart App Control can block every new executable hash, including scheduled-task launches. Do not disable Smart App Control or add security exclusions. The 32-grapheme build and any multi-PC release require Authenticode signatures chaining to a CA in the Microsoft Trusted Root Program before deployment. The current canary PC is temporarily running the previously trusted canary.9 build, which does not include the 32-grapheme display refinement.
 
+The selected production path is a one-year Certum Standard Code Signing in the Cloud certificate for an individual. No certificate has been purchased yet. The decision, privacy/cost boundary, pinned trust chain, and qualification procedure are in [`docs/code-signing-runbook.md`](docs/code-signing-runbook.md).
+
 The frozen architecture and rollout gates are in [`docs/20260711_codex_telegram_completion_notification_blueprint.md`](docs/20260711_codex_telegram_completion_notification_blueprint.md).
 
 ## Development
@@ -26,6 +28,18 @@ Do not install or enable live delivery until the automated tests and the current
 ```
 
 The versioned directory under `artifacts/release` is self-contained for Windows x64. Keep the sibling `*.manifest.outer.sha256` record separately from the package.
+
+Unsigned builds are development-only. After the selected certificate is activated, build an eligible signed candidate with:
+
+```powershell
+& .\scripts\bootstrap-signing-tools.ps1
+& .\scripts\package.ps1 `
+    -Version "1.0.0-rc.1" `
+    -CodeSigningThumbprint "<40-hex-certificate-thumbprint>" `
+    -RequireCodeSigning
+```
+
+The package command keeps the native SQLite DLL beside the single-file applications instead of extracting it to a temporary directory, then signs both executables, that DLL, and both deployment scripts before generating the manifest. A signed package contains `signing-record.json`; install planning, apply, staging, and doctor reject it if Windows Authenticode trust, the timestamp, the selected signer, the pinned Certum signing CA, or the pinned public root chain does not validate.
 
 ## Current-PC rollout
 

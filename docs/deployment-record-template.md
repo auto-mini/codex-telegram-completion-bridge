@@ -6,6 +6,11 @@
 - Install timestamp (UTC):
 - Machine GUID prefix:
 - `manifest.sha256` outer SHA-256:
+- `signing-record.json` SHA-256 (signed releases only):
+- Signer certificate thumbprint (signed releases only):
+- Signing CA / trusted root SHA-256 (signed releases only):
+- Authenticode and timestamp verification result:
+- Smart App Control / Code Integrity result:
 - Install plan SHA-256:
 - Shadow gate result:
 - Live local gate result:
