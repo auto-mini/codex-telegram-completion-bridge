@@ -14,6 +14,7 @@
   - `bfcb994` — verified Computer Use wrapper compatibility and duplicate-upstream suppression
   - `03b08a1` — sidebar-truncated shadow-title verification and interleaved-task qualification
   - `606178c` — 32-grapheme Telegram title display with full encrypted local retention
+  - `ec049a7` — pinned Certum Authenticode release pipeline, timestamp verification, and non-extracted native dependency
 - SDK used: .NET SDK 8.0.422
 - Runtime target: self-contained `win-x64`, trimming disabled
 
@@ -21,9 +22,13 @@
 
 - Clean locked restore: PASS
 - Release build with warnings as errors: PASS, 0 warnings
-- Unit tests: 81/81 PASS
+- Unit tests: 85/85 PASS
 - Integration tests: 82/82 PASS
-- Total automated tests: 163/163 PASS
+- Total automated tests: 167/167 PASS
+- Pinned Microsoft SignTool locked restore and Authenticode/timestamp countersigner verification: PASS
+- Unsigned development-package compatibility, inner manifest, and outer-hash regression: PASS
+- Required-signing preflight with an unavailable certificate fails before output mutation: PASS
+- Full Certum-signed candidate: PENDING certificate acquisition and activation
 - Real current-user Task Scheduler create/disable/enable/query/remove test: PASS
 - Actual console-subsystem upstream contract test: PASS
   - exact argv and original synthetic payload
@@ -63,7 +68,7 @@
 - Expanded live canary observations: PASS so far
   - user confirmed delivery while Windows was locked, from an additional task, and from a previously opened task
   - observed end-to-end latency is approximately 3–10 seconds, within the provisional p95 10-second / max 30-second target
-  - latest online doctor is `OK` with six sent completions, zero inflight, zero quarantine, and no active health condition
+  - latest online doctor is `OK` with 13 sent completions, zero inflight, zero quarantine, and no active health condition
   - four earlier non-current, immutable-shadow events remain pending `THREAD_NOT_PERSISTED`; they cannot be sent and remain evidence to recheck at the 12/24/48-hour gates
 - Telegram title-display refinement: PASS in automated verification
   - runtime Telegram text now keeps at most the first 32 Unicode grapheme clusters and appends one ellipsis
@@ -80,9 +85,21 @@
 - The previously exercised canary.9 hash passed a direct control/bridge launch and an isolated Task Scheduler probe under the same policy.
 - A transactional rollback to canary.9 completed with matching package/binary hashes, live capture and Telegram credentials preserved.
 - After rollback, Repair completed with result 0, Drain launched successfully, online doctor returned `OK`, and no new bridge Code Integrity block was recorded.
-- The first post-rollback live completion was received in Telegram and the user observed no Windows blocking notification. A final check recorded 12 sent completions, no active doctor condition, and zero post-rollback Code Integrity blocks.
+- The first post-rollback live completion was received in Telegram and the user observed no Windows blocking notification. The latest online check recorded 13 sent completions, no active doctor condition, and zero post-rollback Code Integrity blocks.
 - Smart App Control was not disabled and no Defender, firewall, certificate-store, or application-control exception was added.
-- Multi-PC rollout is blocked until a trusted production-signing path is selected and every shipped executable is signed and requalified.
+- Multi-PC rollout remains blocked until the selected production certificate is acquired, every shipped executable and deployment script is signed, and the signed candidate is requalified.
+
+## Code-signing decision and readiness
+
+- Microsoft Artifact Signing Public Trust was rejected because its current regional prerequisite excludes individuals and organizations based in South Korea.
+- The selected path is a one-year Certum Standard Code Signing in the Cloud certificate issued to an individual. No order, payment, account mutation, or identity-document submission has been performed.
+- Purchase remains a user boundary because the paid validation process requires identity/address evidence and the verified legal name becomes public Authenticode publisher data.
+- The alternative EV tier is unnecessary for this user-mode application; the selected Standard product supplies the required Microsoft-trusted RSA code-signing chain.
+- The release pipeline now has a mandatory signed mode that externalizes the native SQLite DLL to avoid unsigned temporary extraction, signs both executables, that DLL, and both deployment scripts before hashing, requires timestamps, and emits a manifest-covered `signing-record.json` containing pre-sign and signed hashes.
+- Certificate preflight fails closed on private-key access, validity, RSA key strength, Code Signing EKU, key usage, online revocation, or a chain outside the SHA-256-pinned Certum Code Signing CA and official RSA roots.
+- Signed packages are revalidated during install planning, apply, staging, and doctor through the Windows Authenticode policy provider, including the selected leaf signer and timestamp countersigner fingerprints.
+- Microsoft SignTool is restored from the locked `Microsoft.Windows.SDK.BuildTools` 10.0.26100.7705 NuGet package instead of installing the full Windows SDK.
+- The exact purchase/activation/build/qualification procedure is frozen in `docs/code-signing-runbook.md`.
 
 ## Canary package
 
@@ -125,6 +142,6 @@
 | Current-PC live canary | IN PROGRESS — restored to canary.9; soak clock resets after rollback |
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 48-hour soak | PENDING |
-| Additional-PC release | BLOCKED by trusted code signing and preceding gates |
+| Additional-PC release | BLOCKED by certificate purchase/identity activation, signed-candidate qualification, and preceding gates |
 
-No live Telegram delivery or additional-PC rollout is authorized by this record until its preceding gates pass.
+The restored canary.9 installation may remain live on the current PC. No signed-candidate live apply or additional-PC rollout is authorized until its preceding gates pass.
