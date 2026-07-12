@@ -41,6 +41,21 @@ public static class WindowsAclManager
         new FileInfo(path).SetAccessControl(security);
     }
 
+    internal static void NormalizeFileOwnership(string path, string userSid)
+    {
+        CurrentUserContext.EnsureSupportedHost();
+        var expectedUser = ParseSid(userSid);
+        var file = new FileInfo(path);
+        var security = file.GetAccessControl(AccessControlSections.Owner);
+        if (expectedUser.Equals(security.GetOwner(typeof(SecurityIdentifier))))
+        {
+            return;
+        }
+
+        security.SetOwner(expectedUser);
+        file.SetAccessControl(security);
+    }
+
     public static void NormalizeTreeOwnership(string root, string userSid)
     {
         CurrentUserContext.EnsureSupportedHost();

@@ -57,6 +57,21 @@ public sealed class WindowsAclManagerIntegrationTests : IDisposable
         Assert.Equal("INSTALL_DESCENDANT_ACL_INVALID", result.OperationCode);
     }
 
+    [Fact]
+    public void Atomic_create_and_replace_keep_the_current_user_as_owner()
+    {
+        var sid = CurrentUserContext.Sid;
+        WindowsAclManager.CreateProtectedRoot(root, sid);
+        var path = Path.Combine(root, "sample.json");
+
+        AtomicFile.WriteUtf8(path, "first");
+        AtomicFile.WriteUtf8(path, "second");
+        var result = WindowsAclManager.VerifyTree(root, sid);
+
+        Assert.Equal("second", AtomicFile.ReadUtf8(path));
+        Assert.True(result.IsValid, result.OperationCode);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(root))
