@@ -25,7 +25,9 @@ internal static class Program
             GetFileType(GetStdHandle(StdOutputHandle)),
             GetFileType(GetStdHandle(StdErrorHandle)),
             GetConsoleWindow() != IntPtr.Zero);
-        File.WriteAllText(output, JsonSerializer.Serialize(observation));
+        var temporaryOutput = $"{output}.{Guid.NewGuid():N}.tmp";
+        File.WriteAllText(temporaryOutput, JsonSerializer.Serialize(observation));
+        File.Move(temporaryOutput, output);
         return 0;
     }
 
