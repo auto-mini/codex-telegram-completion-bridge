@@ -104,6 +104,18 @@
 - Exact SignPath organization/project/policy slugs, API credentials, certificate identity, and signed-package verification are deliberately deferred until Foundation acceptance; they must not be guessed.
 - The current public policy and activation gates are in `docs/code-signing-policy.md`.
 
+## Public repository and unsigned preview release
+
+- Public repository: `https://github.com/auto-mini/codex-telegram-completion-bridge`
+- Default branch: protected `main`; the local operational records remain only on the private `codex/telegram-completion-bridge` branch.
+- Public release: prerelease `v0.1.0`, explicitly marked as an unsigned preview and published from commit `a2cc8c87576be69c4f031c47521c03a9f538a2ea`.
+- GitHub-hosted validation passed with 81 unit tests, 84 integration tests, a clean NuGet vulnerability audit, Gitleaks, packaging smoke verification, CodeQL, and build-provenance attestation.
+- Release ZIP SHA-256: `cff0a45d16f4e4be54979aabf4eae6687a76f7ddb89a5c3d3b202314b3875516`.
+- Outer manifest SHA-256: `9c7dc2121ece038eb5bab1e6ecfd3d9094d5c592f990a895deb0c48fd0ec52bc`.
+- Independent post-download verification passed for the ZIP hash, outer and inner manifests, the declared unsigned Authenticode state, and the GitHub build-provenance attestation.
+- The SignPath Foundation application form was inspected but not submitted. It requires project-reputation evidence plus the applicant's real name, email, Code of Conduct acceptance, and consent to personal-data processing. The new repository does not yet have an honest established-use reputation claim, and the personal fields and consents must be supplied directly by the applicant.
+- The application draft should use `Individual maintainer(s)`, `GitHub Actions`, and `AI / LLM tools` with `ChatGPT / OpenAI Codex` as the exact discovery source, unless the applicant provides different truthful information.
+
 ## Canary package
 
 - Latest built candidate: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
