@@ -98,6 +98,7 @@
 - The initial public artifact is therefore an explicitly unsigned preview. It must not replace the verified local canary and must not instruct users to bypass Windows protections.
 - Public release preparation adds the MIT license, privacy/security/contribution policies, the required code-signing policy language, GitHub-hosted CI, secret and dependency scanning, locked restore, build provenance, and a reviewed SignPath artifact configuration.
 - NuGet audit found the bundled SQLite native package affected by a high-severity advisory. The package was removed; the Windows-only application now uses the Windows-serviced and Microsoft-signed `winsqlite3.dll` instead.
+- The first public GitHub-hosted test exposed that an elevated Windows runner can create descendants owned by `Administrators` even under a current-user-owned protected root. Installation now normalizes every non-reparse descendant to the planned user SID, revalidates the ACL before task enablement and commit, repeats the check after rollback/recovery, and traverses without following junctions.
 - SignPath will sign only the two project executables and the two project deployment scripts. No upstream binary will be shipped under the project signature.
 - Exact SignPath organization/project/policy slugs, API credentials, certificate identity, and signed-package verification are deliberately deferred until Foundation acceptance; they must not be guessed.
 - The current public policy and activation gates are in `docs/code-signing-policy.md`.
