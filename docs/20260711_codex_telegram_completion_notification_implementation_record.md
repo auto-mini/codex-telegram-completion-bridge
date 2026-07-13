@@ -74,6 +74,17 @@
   - at 2026-07-12 22:27 KST, approximately 14 hours after the canary.9 rollback installation, the user confirmed a normal Telegram completion after a PC reboot and a Windows-originated task
   - the immediate online doctor returned `OK`: Telegram, scheduled tasks, installation ACL, package manifest, runtime configuration, upstream preservation, and Codex notify wrapping all passed
   - queue observation was 27 sent, zero inflight, zero quarantine, zero emergency/corrupt spool, and six unresolved pending rows; the pending rows are non-blocking at this gate and must be classified again at the 24-hour check
+- Post-rollback 24-hour delivery observation: PASS; formal qualification: DEGRADED
+  - at 2026-07-13 08:47 KST, after a Codex app update and PC reboot, the user confirmed normal Telegram delivery from Android Remote while Windows was locked
+  - app-update compatibility passed: Codex notify remained `BRIDGE_ACTIVE_WRAPPED`, the captured vendor remained `VENDOR_OK`, and Telegram, scheduled tasks, installation ACL, package manifest, runtime configuration, emergency spool, and local state checks all passed
+  - the online doctor reported 30 sent, zero inflight, four quarantine, and three pending rows; the four earliest non-current shadow observations reached the designed 24-hour resolver timeout and raised non-blocking `EVENT_QUARANTINED`
+  - the blueprint requires explicit reviewed acknowledgement and suppression before qualification, but the corresponding control command was missing from the implementation; therefore this gate is not recorded as fully passed even though requested delivery succeeded
+- Quarantine acknowledgement recovery: implemented and verified for the next signed candidate
+  - `quarantine list` exposes only sequence, timestamp, capture mode, fixed reason code, and a 12-character opaque event prefix
+  - `quarantine acknowledge <sequence>` displays the reviewed row, requires interactive confirmation, atomically converts only that exact quarantined event to `suppressed`, never sends or replays it, and clears `EVENT_QUARANTINED` only after no quarantined rows remain
+  - repeated acknowledgement of an already transitioned row fails closed and leaves remaining quarantine health intact
+  - 81 unit and 85 integration tests pass; source formatting and NuGet vulnerability audit are clean
+  - unsigned package smoke build `0.1.1-preview.2` passed all 14 inner-manifest hashes with outer manifest SHA-256 `97ec8bbd20fb3701ab692188c7c9ea5b18a237be84dedaa69e09abb52040cbca`; it remains undeployed and is not a public release
 - Telegram title-display refinement: PASS in automated verification
   - runtime Telegram text now keeps at most the first 32 Unicode grapheme clusters and appends one ellipsis
   - short titles remain byte-for-byte unchanged in the rendered line
@@ -173,7 +184,7 @@
 | Current-PC live canary | IN PROGRESS — restored to canary.9; soak clock resets after rollback |
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 12-hour post-rollback observation | PASS — rebooted Windows task delivered at approximately +14 hours; online doctor `OK` |
-| 24-hour post-rollback observation | PENDING |
+| 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour soak | PENDING |
 | Signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration and signed-candidate qualification on the current PC |
 | One additional PC | PENDING until the identical signed title-shortening package passes the current-PC gate |
