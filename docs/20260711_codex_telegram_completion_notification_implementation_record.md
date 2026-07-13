@@ -85,6 +85,7 @@
   - repeated acknowledgement of an already transitioned row fails closed and leaves remaining quarantine health intact
   - 81 unit and 85 integration tests pass; source formatting and NuGet vulnerability audit are clean
   - unsigned package smoke build `0.1.1-preview.2` passed all 14 inner-manifest hashes with outer manifest SHA-256 `97ec8bbd20fb3701ab692188c7c9ea5b18a237be84dedaa69e09abb52040cbca`; it remains undeployed and is not a public release
+  - public draft PR `#5` (`https://github.com/auto-mini/codex-telegram-completion-bridge/pull/5`) contains only the public code, tests, and operator documentation; GitHub-hosted CI, dependency review, Gitleaks, package smoke verification, and CodeQL all passed
 - Telegram title-display refinement: PASS in automated verification
   - runtime Telegram text now keeps at most the first 32 Unicode grapheme clusters and appends one ellipsis
   - short titles remain byte-for-byte unchanged in the rendered line
