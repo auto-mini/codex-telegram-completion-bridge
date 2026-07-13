@@ -103,6 +103,22 @@ public sealed class CaptureControl(
 
     public IReadOnlyList<ShadowRecord> ListShadow(InstallationLayout layout) => new QueueStore(layout.DatabasePath).ListShadow();
 
+    public IReadOnlyList<QuarantineRecord> ListQuarantine(InstallationLayout layout) => new QueueStore(layout.DatabasePath).ListQuarantine();
+
+    public void AcknowledgeQuarantine(InstallationLayout layout, string eventId)
+    {
+        using var mutationLock = AcquireMutationLock();
+        var queue = new QueueStore(layout.DatabasePath);
+        queue.ValidateExistingSchema();
+        var acl = WindowsAclManager.VerifyTree(layout.Root, (currentSid ?? (() => CurrentUserContext.Sid))());
+        if (!acl.IsValid)
+        {
+            throw new InvalidOperationException(HealthCodes.InstallAclBlocked);
+        }
+
+        queue.AcknowledgeQuarantine(eventId, (utcNow ?? (() => DateTimeOffset.UtcNow))());
+    }
+
     public bool VerifyShadow(InstallationLayout layout, long sequence, string expectedPc, string expectedTitlePrefix)
     {
         var protectedEnvelope = new QueueStore(layout.DatabasePath).GetShadowEnvelope(sequence)

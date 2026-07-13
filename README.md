@@ -70,6 +70,8 @@ $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
 & $ctl doctor --json
 & $ctl shadow list
 & $ctl shadow verify 1
+& $ctl quarantine list
+& $ctl quarantine acknowledge 1
 & $ctl telegram bootstrap
 & $ctl enable-live
 & $ctl pause
@@ -77,6 +79,8 @@ $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
 ```
 
 `shadow verify` asks, with no echo, for the exact PC name and at least the first 12 visible characters of the task title. A copied trailing ellipsis is ignored, so a sidebar-truncated title remains verifiable without displaying the full locally stored title.
+
+`quarantine list` displays only sequence, timestamp, capture mode, fixed error code, and a shortened opaque event ID. `quarantine acknowledge <sequence>` requires interactive confirmation, converts exactly that reviewed row to `suppressed`, and clears `EVENT_QUARANTINED` only after no quarantined rows remain. It never sends or replays the event.
 
 After desktop startup, Computer Use may place its verified `turn-ended --previous-notify` wrapper around the bridge. This is supported; the bridge suppresses a second upstream launch so Computer Use is signaled only once.
 

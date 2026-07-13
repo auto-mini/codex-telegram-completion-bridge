@@ -20,6 +20,7 @@ public static class BridgeConstants
     public const string VendorExecutableName = "codex-computer-use.exe";
     public const string VendorArgument = "turn-ended";
     public const string VendorPreviousNotifyArgument = "--previous-notify";
+    public const string QuarantineAcknowledgedCode = "QUARANTINE_ACKNOWLEDGED";
     public const int MaxPreviousNotifyUtf16Length = 32_768;
     public static readonly TimeSpan HookDatabaseBusyTimeout = TimeSpan.FromMilliseconds(100);
     public static readonly TimeSpan WorkerLeaseDuration = TimeSpan.FromMinutes(10);
