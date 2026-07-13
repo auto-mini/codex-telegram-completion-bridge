@@ -24,7 +24,7 @@ The public-release preparation passed:
 
 - locked NuGet restore;
 - Release build with zero warnings and zero errors;
-- 81 unit tests and 84 integration tests;
+- 81 unit tests and 85 integration tests;
 - a NuGet audit with no known vulnerable packages;
 - Gitleaks scans of the working tree and private development history with no detected secret;
 - PowerShell, XML, GitHub Actions, formatting, and whitespace validation;

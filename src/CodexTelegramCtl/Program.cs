@@ -26,6 +26,8 @@ internal static class Program
             ["resume", .. var options] => Resume(options),
             ["shadow", "list"] => ListShadow(),
             ["shadow", "verify", var sequence] => VerifyShadow(sequence),
+            ["quarantine", "list"] => ListQuarantine(),
+            ["quarantine", "acknowledge", var sequence] => AcknowledgeQuarantine(sequence),
             ["repair"] => RunRepair(),
             ["upstream", "adopt", var path] => AdoptUpstream(path),
             ["uninstall", .. var options] => RunUninstall(options),
@@ -240,6 +242,48 @@ internal static class Program
         return 0;
     }
 
+    private static int ListQuarantine()
+    {
+        var layout = InstallationLayout.DefaultForCurrentUser();
+        foreach (var item in Control(layout).ListQuarantine(layout))
+        {
+            Console.WriteLine($"{item.Sequence}\t{item.ObservedAtUtc:O}\t{item.IngestMode.ToString().ToLowerInvariant()}\t{item.ErrorCode}\t{item.EventId[..BridgeConstants.EventIdLogPrefixLength]}");
+        }
+
+        return 0;
+    }
+
+    private static int AcknowledgeQuarantine(string sequenceText)
+    {
+        if (!long.TryParse(sequenceText, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) || sequence < 1)
+        {
+            return Fail("QUARANTINE_SEQUENCE_INVALID", 2);
+        }
+
+        var layout = InstallationLayout.DefaultForCurrentUser();
+        var control = Control(layout);
+        var item = control.ListQuarantine(layout).FirstOrDefault(candidate => candidate.Sequence == sequence);
+        if (item is null)
+        {
+            return Fail("QUARANTINE_SEQUENCE_NOT_FOUND", 2);
+        }
+
+        Console.WriteLine($"sequence={item.Sequence}");
+        Console.WriteLine($"observed={item.ObservedAtUtc:O}");
+        Console.WriteLine($"mode={item.IngestMode.ToString().ToLowerInvariant()}");
+        Console.WriteLine($"reason={item.ErrorCode}");
+        Console.WriteLine($"event={item.EventId[..BridgeConstants.EventIdLogPrefixLength]}");
+        if (!Confirm("Acknowledge and suppress this quarantined event? [y/N] "))
+        {
+            Console.WriteLine("quarantine=unchanged");
+            return 1;
+        }
+
+        control.AcknowledgeQuarantine(layout, item.EventId);
+        Console.WriteLine("quarantine=acknowledged_and_suppressed");
+        return 0;
+    }
+
     private static int RunRepair()
     {
         var result = RepairService.CreateProduction().Run(InstallationLayout.DefaultForCurrentUser());
@@ -388,6 +432,7 @@ internal static class Program
         Console.WriteLine("CodexTelegramCtl telegram bootstrap|migrate-bot|configure-chat <chat-id>|reconfigure <chat-id>");
         Console.WriteLine("CodexTelegramCtl enable-live|pause|resume [--yes]");
         Console.WriteLine("CodexTelegramCtl shadow list|verify <sequence>");
+        Console.WriteLine("CodexTelegramCtl quarantine list|acknowledge <sequence>");
         Console.WriteLine("CodexTelegramCtl repair|upstream adopt <absolute-path>");
         Console.WriteLine("CodexTelegramCtl uninstall [--keep-config-conflict] [--purge-state]");
         Console.WriteLine("CodexTelegramCtl maintenance clear-local-state");

@@ -44,6 +44,52 @@ public sealed class QueueStoreIntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Acknowledging_every_quarantined_event_suppresses_rows_and_clears_health()
+    {
+        var queue = CreateQueue();
+        var first = CreateEvent(CaptureMode.Shadow) with { ObservedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        var second = CreateEvent(CaptureMode.Live) with { ObservedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        queue.TryInsert(first);
+        queue.TryInsert(second);
+        queue.AcquireNextDue(DateTimeOffset.UtcNow, networkDeliveryAllowed: true);
+        queue.MarkQuarantine(first.EventId, DateTimeOffset.UtcNow, "THREAD_STATE_TIMEOUT");
+        queue.AcquireNextDue(DateTimeOffset.UtcNow, networkDeliveryAllowed: true);
+        queue.MarkQuarantine(second.EventId, DateTimeOffset.UtcNow, "STATE_SCHEMA_UNSUPPORTED");
+
+        var listed = queue.ListQuarantine();
+        Assert.Collection(
+            listed,
+            item =>
+            {
+                Assert.Equal(1, item.Sequence);
+                Assert.Equal(first.EventId, item.EventId);
+                Assert.Equal(CaptureMode.Shadow, item.IngestMode);
+                Assert.Equal("THREAD_STATE_TIMEOUT", item.ErrorCode);
+            },
+            item =>
+            {
+                Assert.Equal(2, item.Sequence);
+                Assert.Equal(second.EventId, item.EventId);
+                Assert.Equal(CaptureMode.Live, item.IngestMode);
+                Assert.Equal("STATE_SCHEMA_UNSUPPORTED", item.ErrorCode);
+            });
+
+        queue.AcknowledgeQuarantine(first.EventId, DateTimeOffset.UtcNow);
+        Assert.Single(queue.ListQuarantine());
+        Assert.Contains(queue.GetHealthConditions(), condition => condition.ConditionCode == HealthCodes.EventQuarantined);
+        Assert.Equal(EventState.Suppressed, queue.GetEvent(first.EventId)!.State);
+        Assert.Equal(BridgeConstants.QuarantineAcknowledgedCode, queue.GetEvent(first.EventId)!.LastErrorCode);
+        Assert.Throws<InvalidOperationException>(() => queue.AcknowledgeQuarantine(first.EventId, DateTimeOffset.UtcNow));
+        Assert.Contains(queue.GetHealthConditions(), condition => condition.ConditionCode == HealthCodes.EventQuarantined);
+
+        queue.AcknowledgeQuarantine(second.EventId, DateTimeOffset.UtcNow);
+        Assert.Empty(queue.ListQuarantine());
+        Assert.DoesNotContain(queue.GetHealthConditions(), condition => condition.ConditionCode == HealthCodes.EventQuarantined);
+        Assert.Equal(2, queue.GetCounts().Suppressed);
+        Assert.Equal(0, queue.GetCounts().Quarantine);
+    }
+
+    [Fact]
     public void Recovers_expired_lease()
     {
         var queue = CreateQueue();

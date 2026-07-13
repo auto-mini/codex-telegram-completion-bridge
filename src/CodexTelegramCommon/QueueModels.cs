@@ -32,6 +32,13 @@ public sealed record QueueCounts(
 
 public sealed record ShadowRecord(long Sequence, string EventId, DateTimeOffset ObservedAtUtc);
 
+public sealed record QuarantineRecord(
+    long Sequence,
+    string EventId,
+    DateTimeOffset ObservedAtUtc,
+    CaptureMode IngestMode,
+    string ErrorCode);
+
 public enum InsertOutcome
 {
     Inserted,
