@@ -155,7 +155,7 @@
 
 ## Superseded PC2 handoff candidate (2026-07-14, personal.1)
 
-This candidate is retained only as an audit record. It must not be deployed because the user subsequently reduced the Telegram title-display limit from 32 to 12 grapheme clusters; `personal.2` initially superseded it and `personal.3` is the current candidate.
+This candidate is retained only as an audit record. It must not be deployed because the user subsequently reduced the Telegram title-display limit from 32 to 12 grapheme clusters; `personal.2` initially superseded it, `personal.3` was deployed and rejected, and `personal.4` is the replacement candidate.
 
 - Tooling commits: `c054e52` (fail-closed rollout), `9c07a56` (minimal secret-free payload), and `3d3b4be` (Windows PowerShell path compatibility).
 - Final payload version: `1.0.0-personal.1`; source package outer manifest SHA-256 `463da2e782377787caea6f552070631b4f5cf40e8899115ba62d8082a03fd342`.
@@ -189,10 +189,10 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - After `personal.3` passed static qualification, the `personal.2` handoff directory, ZIP, and ZIP-hash sidecar were deleted to prevent accidental redeployment. Its source release package and recorded hashes remain as local audit evidence.
 - No supplemental policy or `personal.2` executable was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
 
-## Current PC2 handoff candidate (2026-07-14, personal.3)
+## Superseded deployed PC2 candidate (2026-07-14, personal.3)
 
 - Final source/bundle commit: `04dbf94c66dd8af39a7ae4e7edd513dbef23ca11`; public Draft PR exact public-safe commit: `29837a7`.
-- The current Codex desktop title from bounded `.codex-global-state.json` metadata now takes precedence over the legacy database title for the same root task ID. Missing metadata falls back to the compatible database; blank, malformed, oversized, or transiently replaced metadata fails closed for retry instead of emitting a stale title.
+- This candidate attempted to treat the exact-ID `thread-descriptions-v1` value in bounded `.codex-global-state.json` metadata as the current task title. PC2 runtime evidence later proved that field is a separately generated description and can remain stale after a task rename; this authority choice was incorrect.
 - Shadow verification requires the complete title when the normalized title is shorter than 12 grapheme clusters and a prefix of at least 12 grapheme clusters for longer titles. Exact short titles and copied trailing ellipsis variants are accepted; partial short titles are rejected.
 - `Test-PersonalCandidateExecution.ps1` now explicitly permits an empty `Arguments` string while retaining the existing mandatory parameter and expected-exit-code checks.
 - Final payload version: `1.0.0-personal.3`; source package outer manifest SHA-256 `e27c0b776443170ca920c28c1a725df41554969dc1a41df5f74653210d316d7f`.
@@ -206,8 +206,21 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - Source validation passed: locked restore, zero-warning/zero-error Release build, 87 unit tests and 91 integration tests locally, the same 87/91 counts on GitHub-hosted Windows for public commit `29837a7`, formatting, transitive NuGet vulnerability audit, PowerShell syntax/safety, Gitleaks, dependency review, secret scan, and CodeQL.
 - Candidate validation passed without launching project executables on PC1: two-build 15-file deterministic package comparison, Code Integrity XSD validation, exact 18-entry/20-file bundle verification, ZIP hash and byte-for-byte round trip, deliberate tamper rejection, Windows PowerShell 5 integrity/policy parsing, no-`-Apply` install/remove guards, fixed empty-argument binding through a system test executable, mock SAC-ready/SAC-off/extra-Base rejection, unsigned four-EXE/no-DLL shape, upgrade-specific credential/capture guidance, personal-text scan, and Gitleaks.
 - An earlier, never-delivered `personal.3` handoff was deleted before finalization after review found that its generic instructions unnecessarily repeated Telegram bootstrap on an upgrade and that the Ctl install summary incorrectly printed `capture=shadow` for preserved upgrade state. Commit `04dbf94` fixes both; no rejected `personal.3` executable was installed or launched on either PC.
-- The exact `personal.3` PC2 readiness, execution smoke, update, rename/restart regression, short-title shadow, Telegram, reboot, lock-screen, and Android Remote requalification remain pending. Because PC2 reported `SAC_OFF_DIRECT_TEST` and installed no `personal.2` supplemental policy, there is no old project policy to remove before the update.
+- PC2 upgraded successfully in `SAC_OFF_DIRECT_TEST`; candidate execution and online doctor passed with live capture, valid Telegram credentials/connectivity, and zero pending/quarantined rows. Reboot, locked-session delivery, and Android notification also passed. Because no supplemental policy was installed, no old project policy needs removal.
+- Promotion failed on the title gate. After a task rename and again after PC reboot, Telegram used an older generated description instead of the current visible task title. The legacy `state_5.sqlite` row also retained its initial title, so neither source is an authority for the renamed title.
+- Read-only inspection of the installed Codex app showed that the UI issues `thread/name/set`, keeps `title` and `description` as distinct fields, and maps `thread-descriptions-v1` to the description. The official Codex [app-server contract](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md) identifies `thread/name/set` as the user-facing rename path, and the official [session-index implementation](https://github.com/openai/codex/blob/main/codex-rs/rollout/src/session_index.rs) defines name updates as append-only with the newest valid exact-ID entry winning. `personal.3` is therefore superseded and must not be redistributed; PC2 may keep it temporarily only for completion delivery until `personal.4` is installed.
 - No `personal.3` executable or supplemental policy was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
+
+## Current PC2 replacement candidate (2026-07-14, personal.4)
+
+- Private implementation commit: `5ee32d3`; public Draft PR exact public-safe commit: `eeb5087`.
+- Root/subagent classification still comes from the exact compatible state-database row. For a classified root, the resolver reads a bounded, stable `session_index.jsonl` snapshot in reverse order and uses the newest valid exact-ID `{id, thread_name, updated_at}` record. The database title is used only when no indexed name exists; desktop description metadata is never title authority.
+- The reader mirrors Codex's reverse lookup for malformed unrelated rows and valid EOF JSON, accepts UTF-8 BOM and CRLF, materializes only the matching title, clears its rented buffer, retries rather than using a stale database title while the index is inaccessible/changing, and rejects an index above 64 MiB.
+- `doctor` and the shadow-to-live gate now probe title-index accessibility in addition to the state-database schema.
+- Local verification passes 87 unit tests and 95 integration tests, formatting, PowerShell syntax/personal-rollout safety, and the transitive NuGet vulnerability audit. Dedicated regressions cover newest-name precedence across resolver restart, stale desktop-description rejection, exact no-name database fallback, blank latest name, malformed rows, valid unterminated EOF, UTF-8 BOM/CRLF, locked index, and oversized index.
+- The public branch remains Draft and unmerged. Exact-head GitHub CI, secret scan, dependency review, and CodeQL are running for `eeb5087`.
+- The replacement payload version is `1.0.0-personal.4`; the supplemental-policy semantic ID/version are `CodexTelegramBridge-Personal-Allow-v4` and `1.0.0.4`. Package, policy, bundle, and handoff hashes remain pending clean-tree generation and static qualification.
+- No `personal.4` executable or supplemental policy has been applied or launched on either PC. PC1 remains on canary.9; PC2 remains temporarily on superseded `personal.3` until the exact replacement handoff is ready.
 
 ## Canary package
 
@@ -227,7 +240,7 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - The exact verified Computer Use `--previous-notify` wrapper is accepted as an active bridge shape; nested bridge execution suppresses a second vendor launch.
 - Malformed, oversized, extra-argument, untrusted-root, and unsupported nested bridge shapes fail closed, including uninstall dangling-reference checks.
 - Shadow verification accepts only an exact PC plus either the complete normalized title when it is shorter than 12 graphemes or a visible prefix of at least 12 graphemes for longer titles; copied trailing UI ellipses are handled without revealing stored titles.
-- Root/subagent classification remains fail-closed against the compatible Codex state database. For a classified root, an exact-ID Codex desktop app title overrides the legacy database title; the bounded app-state reader copies only the target title, clears its rented buffer, and retries on malformed or concurrently replaced metadata.
+- Root/subagent classification remains fail-closed against the compatible Codex state database. For a classified root, the newest valid exact-ID Codex session-index name overrides the legacy database title; the bounded stable-snapshot reader materializes only the target title, clears its rented buffer, and retries while the index is inaccessible or concurrently changing.
 - Hook mode performs no network I/O.
 - SQLite deduplication, emergency spool, leases, independent resolution/delivery retries, persistent health gates, retention, and corruption markers are implemented.
 - Bot token and selected bot/chat generation are committed as one DPAPI CurrentUser blob.
@@ -254,7 +267,7 @@ This candidate is retained only as an audit record. It must not be deployed beca
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
 | Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; retained as the public-distribution path |
-| Personal exact-hash title-shortening candidate | READY FOR PC2 REQUALIFICATION — `personal.3` bundle built and statically verified; no policy or executable applied to PC1 |
-| One additional PC | `personal.2` delivery passed but candidate was superseded; PENDING exact `personal.3` readiness, four-executable smoke, update, title-regression, Telegram, restart, lock-screen, and Android Remote checks |
+| Personal exact-hash title-shortening candidate | IN DEVELOPMENT — `personal.3` transport passed but title authority failed; `personal.4` source fix passes local tests and awaits exact package/bundle qualification |
+| One additional PC | PC2 remains operational on superseded `personal.3`; PENDING exact `personal.4` readiness, four-executable smoke, update, title-regression, Telegram, restart, lock-screen, and Android Remote checks |
 
-The restored canary.9 installation remains live on PC1 while PC2 requalifies the exact `personal.3` package under its unchanged Windows protection. Final two-PC completion requires `personal.3` to pass PC2 first and then the same reviewed package, with the policy path selected from each PC's fail-closed readiness result, to replace canary.9 on PC1.
+The restored canary.9 installation remains live on PC1 while the exact `personal.4` replacement is qualified for PC2 under unchanged Windows protection. Final two-PC completion requires `personal.4` to pass PC2 first and then the same reviewed package, with the policy path selected from each PC's fail-closed readiness result, to replace canary.9 on PC1.
