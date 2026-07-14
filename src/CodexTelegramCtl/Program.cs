@@ -99,7 +99,7 @@ internal static class Program
         var result = InstallApplier.CreateProduction().Apply(planPath);
         Console.WriteLine("install=complete");
         Console.WriteLine($"mode={(result.WasUpgrade ? "upgrade" : "new")}");
-        Console.WriteLine("capture=shadow");
+        Console.WriteLine($"capture={(result.WasUpgrade ? "preserved" : "shadow")}");
         return 0;
     }
 
