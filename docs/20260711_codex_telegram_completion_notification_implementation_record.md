@@ -93,12 +93,12 @@
   - 81 unit and 85 integration tests pass; source formatting and NuGet vulnerability audit are clean
   - unsigned package smoke build `0.1.1-preview.2` passed all 14 inner-manifest hashes with outer manifest SHA-256 `97ec8bbd20fb3701ab692188c7c9ea5b18a237be84dedaa69e09abb52040cbca`; it remains undeployed and is not a public release
   - public draft PR `#5` (`https://github.com/auto-mini/codex-telegram-completion-bridge/pull/5`) contains only the public code, tests, and operator documentation; GitHub-hosted CI, dependency review, Gitleaks, package smoke verification, and CodeQL all passed
-- Telegram title-display refinement: PASS in automated verification
+- Superseded 32-grapheme Telegram title-display refinement: PASS in automated verification
   - runtime Telegram text now keeps at most the first 32 Unicode grapheme clusters and appends one ellipsis
   - short titles remain byte-for-byte unchanged in the rendered line
   - the full normalized title remains only in the DPAPI-encrypted delivery envelope for verification and retry stability
   - family-emoji grapheme boundaries and the full-envelope/short-message split have dedicated unit and integration coverage
-  - deployment is deferred because Smart App Control blocks the new unsigned executable hash; the active canary.9 rollback still displays the longer title
+  - this intermediate build was deferred because Smart App Control blocked its new unsigned executable hash; the later 12-grapheme `personal.4` result supersedes it
 
 ## Smart App Control incident and rollback
 
@@ -143,7 +143,7 @@
 - Dependabot's first unrestricted grouped update proposed two .NET 8-to-10 production-package upgrades together with a test SDK update. That PR was closed without merge; replacement draft PR `#3` limits routine NuGet version updates to minor and patch releases while leaving security updates enabled.
 - Draft PR `#3` passed the full 165-test CI, dependency review, Gitleaks, packaging smoke test, NuGet audit, and CodeQL. It remains deliberately unmerged pending normal review of the public-repository maintenance policy.
 
-## Two-PC deployment scope
+## Original two-PC deployment scope and plan
 
 - The intended deployment scope is exactly two PCs owned and controlled by the user: the current canary PC and one additional PC. No public end-user or mass binary rollout is planned.
 - The smaller scope does not make a new unsigned hash automatically trusted: Smart App Control already blocked a newer unsigned title-shortening build, and every subsequent unsigned build has a distinct hash. The accepted display limit is 12 Unicode grapheme clusters plus one ellipsis when truncated.
@@ -151,7 +151,7 @@
 - The revised private path pilots PC2 first with an unsigned supplemental App Control policy attached to the unchanged standard Smart App Control Base. The policy contains only exact Authenticode hashes for the title-shortening final Bridge/Ctl and canary.9 rollback Bridge/Ctl.
 - PC2 uses a new local Codex task and a secret-free handoff bundle; it cannot open or continue this PC1 task even under the same Codex account.
 - If PC2 has SAC evaluation/unknown state, an additional enforced non-system Base policy, a mismatched standard Base, or a failed policy/executable smoke check, rollout stops without bypassing Windows protection.
-- PC1 remains on canary.9 until PC2 proves this exact policy and package. SignPath remains a free backup and the required path for a generally distributed release.
+- At this planning checkpoint, PC1 was to remain on canary.9 until PC2 proved the exact policy and package. SignPath remained the required path for a generally distributed release; later owner-only results are recorded below.
 
 ## Superseded PC2 handoff candidate (2026-07-14, personal.1)
 
@@ -213,7 +213,7 @@ This candidate is retained only as an audit record. It must not be deployed beca
 
 ## Current PC2 replacement candidate (2026-07-14, personal.4)
 
-- Final source/bundle commit: `441c289a891edace86cbf67f626c23f9c280b5fc`; implementation fix commit: `5ee32d3`; public Draft PR exact public-safe commit: `eeb5087`.
+- Final source/bundle commit: `441c289a891edace86cbf67f626c23f9c280b5fc`; implementation fix commit: `5ee32d3`; fail-closed SAC-readiness commit: `da47b1e`; public Draft PR current deployment-record commit: `03cdccd`.
 - Root/subagent classification still comes from the exact compatible state-database row. For a classified root, the resolver reads a bounded, stable `session_index.jsonl` snapshot in reverse order and uses the newest valid exact-ID `{id, thread_name, updated_at}` record. The database title is used only when no indexed name exists; desktop description metadata is never title authority.
 - The reader mirrors Codex's reverse lookup for malformed unrelated rows and valid EOF JSON, accepts UTF-8 BOM and CRLF, materializes only the matching title, clears its rented buffer, retries rather than using a stale database title while the index is inaccessible/changing, and rejects an index above 64 MiB.
 - `doctor` and the shadow-to-live gate now probe title-index accessibility in addition to the state-database schema.
@@ -227,7 +227,7 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - After this static qualification, the superseded `personal.3` handoff directory, ZIP, and ZIP-hash sidecar were deleted to prevent accidental redistribution; its source package and recorded hashes remain as audit evidence.
 - PC2 upgraded to exact version `1.0.0-personal.4` from source commit `441c289a891edace86cbf67f626c23f9c280b5fc` with policy ID `{FC005318-2251-4387-8964-0BCF777763EA}`. Online doctor returned `overall=OK`, `capture_mode=live`, `delivery_paused=false`, valid Telegram credentials/connectivity, and zero pending, inflight, and quarantined rows.
 - PC2 runtime title qualification passed immediately after rename, after reboot on the same task, and from Android Remote while Windows was locked; each Telegram notification showed the expected 12-grapheme prefix `Personal4 제목…`. No token, DPAPI material, chat ID, raw database, or raw log was transferred for this verification.
-- PC2 is qualified on `personal.4` in `SAC_OFF_DIRECT_TEST`; PC2 did not install the supplemental policy. PC1 remains on canary.9 because its own active Smart App Control result rejected the unsigned policy, as recorded below.
+- PC2 is qualified on `personal.4` in `SAC_OFF_DIRECT_TEST`; PC2 did not install the supplemental policy. PC1 initially remained on canary.9 after its active Smart App Control rejected the unsigned policy, then followed the separately approved owner-only SAC-off path recorded below.
 
 ## PC1 Smart App Control authorization result (2026-07-14)
 
@@ -235,18 +235,29 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - The exact `personal.4` CIP SHA-256 `06cd25c2ef243f1c99225b13e2ce6890c63dbf9ccfcb7bb52a304be1b63ef80c` was submitted through inbox `CiTool.exe`; the command and operation result were both zero.
 - Four consecutive inventory observations matched project policy ID `{FC005318-2251-4387-8964-0BCF777763EA}`, Base ID `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`, friendly name `CodexTelegramBridge-Personal-Allow`, version `1.0.0.4`, unsigned/non-system identity, and the sole unsigned-policy option. Every observation reported `IsOnDisk=true`, `IsAuthorized=false`, and `IsEnforced=false`.
 - The exact project policy was removed with a zero operation result. Reinspection found it in neither Active nor Staged state. Diagnostic evidence is retained locally as `artifacts/audit/pc1-personal4-policy-raw-2697e84c3b5041f7aca031440185a1f5.{json,log}`; it is not a public artifact.
-- No `personal.4` candidate executable was launched and the Bridge installation was not changed. PC1 continues to run the previously qualified canary.9.
+- At this checkpoint no `personal.4` candidate executable had been launched and the Bridge installation had not changed; PC1 still ran the previously qualified canary.9.
 - The prior readiness logic was invalid because it treated the inbox Smart App Control example XML as runtime authorization evidence. It now requires the exact policy to be already identity-valid, on disk, authorized, and enforced. The compatibility-named install script no longer calls `CiTool --update-policy` or performs rollback mutation.
 - Follow-up hardening validation passed PowerShell parsing, fail-closed mocks for absent, unauthorized, unenforced, identity-mismatched, missing-property, eligible, and SAC-off states, and a fresh 18-file bundle integration run from content-equivalent pre-record checkpoint `0793a2b0093cc548cda556c05bf6da46d25bf0f2`. The smoke bundle outer-manifest SHA-256 was `45485a471c074b3d359b71742d6cfc0df926d4e0c5b4659a86521c0ec3a63d1b`; its ZIP sidecar matched SHA-256 `3dc2b17cfbe2c62237b5ad422064aa7f4cc7783316fc6541eff79c7a7ca4c55d`. The bundled compatibility installer contained zero update/remove calls. This was a static packaging test only; no project executable or policy was launched or installed.
-- A separate exact-hash Base policy is rejected as an alternative: Microsoft documents that multiple Base policies combine as an intersection, so a narrow new Base could block unrelated applications rather than extend the inbox Base. PC1's safe path to the 12-grapheme build is publicly trusted Authenticode signing followed by full qualification.
+- A separate exact-hash Base policy is rejected as an alternative: Microsoft documents that multiple Base policies combine as an intersection, so a narrow new Base could block unrelated applications rather than extend the inbox Base. At this checkpoint the least-risk path was publicly trusted Authenticode signing; the owner later explicitly chose the narrower two-personal-PC exception of turning off SAC only on PC1. Public distribution still requires trusted signing.
+
+## PC1 owner-approved SAC-off `personal.4` deployment (2026-07-14)
+
+- After reviewing Smart App Control's role and the loss of its reputation-based app allow gate, the user explicitly approved turning off Smart App Control only on PC1. The user made the change manually in Windows Security; no bridge script, policy script, registry command, or installer changed that setting. The post-change registry state was `VerifiedAndReputablePolicyState=0`.
+- Immediately after the change, Defender antivirus, real-time protection, behavior monitoring, and IOAV/download inspection were all enabled. Domain, Private, and Public firewall profiles were enabled. VBS reported running state `2`, security service `2` remained configured/running, and UAC remained enabled with `EnableLUA=1` and consent prompt behavior `5`. Secure Boot had been verified enabled before the change and was not modified; the post-change non-elevated read was access-denied and is not recorded as a fresh Secure Boot verification.
+- The exact project policy had already been removed, and the last elevated audit found zero matching project policies. No supplemental policy was installed during the SAC-off deployment.
+- Bundle integrity passed for `CodexTelegramBridge-PC2-Handoff-1.0.0-personal.4`. The standard administrator candidate script could not complete because its UAC prompt was not delivered to the Codex shell session. The non-elevated direct fallback then launched the final Bridge/Ctl and rollback Bridge/Ctl and observed the four expected exit codes `2/0/2/0`. Code Integrity Operational log access was denied at that privilege level, so no fresh event-log absence claim is made; successful launch of all four exact files is the direct no-block evidence.
+- The detached install helper produced `status=complete`, `exitCode=0` at `2026-07-14T10:20:38.2460907Z`. Installed Bridge SHA-256 `e1e8f0625daf32ee222fd02592edcfae5a7c6ee40959ae0ac76ea91d9f7547ca` and Ctl SHA-256 `b6908fc1aa415ed177be0cdb1a7a987ed8a4703583a917793e848d00d903b9d8` matched exact `personal.4`; the installed transaction was `active`, and both `Drain` and `Repair` scheduled tasks were enabled.
+- Online doctor confirmed live capture, delivery enabled, package/ACL/runtime/task checks, preserved DPAPI credentials, vendor upstream, and Telegram connectivity. It returned `DEGRADED` only for `EVENT_QUARANTINED`: seven historical `THREAD_STATE_TIMEOUT` rows from July 11-12 and five old pending rows remained. The rows were listed and reviewed as legacy state, but were not acknowledged, deleted, replayed, or suppressed. A new send succeeded after installation.
+- The user confirmed actual Telegram receipt. The message showed the expected PC field and the exact 12-grapheme prefix plus ellipsis, `모바일gpt어플에서 r…`. This verifies the PC1 title-shortening path against the real Telegram presentation, not only local formatting.
+- PC1 and PC2 now both run exact `personal.4` in `SAC_OFF_DIRECT_TEST` without a supplemental policy. This closes the two-owner-PC deployment only. The public Draft PR remains unmerged, and generally distributed builds still wait for trusted Authenticode signing and full signed-release qualification.
 
 ## Canary package
 
 - Latest built candidate: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
 - Candidate `manifest.sha256` outer SHA-256: `e2273d72a6aab1d0dbf6ccebf33cb2333d7d81ab4905b34efd6a039731e377d5`
 - Rebuild reproducibility check: PASS — canary.10 and canary.11 produced the same outer manifest hash.
-- Active current-PC rollback build: `CodexTelegramBridge-1.0.0-canary.9-win-x64`
-- Active rollback outer SHA-256: `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`
+- Retained current-PC rollback build: `CodexTelegramBridge-1.0.0-canary.9-win-x64`
+- Retained rollback outer SHA-256: `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`
 - canary.11 is quarantined from deployment until it has a valid Authenticode signature chaining to a CA in the Microsoft Trusted Root Program.
 - Package contents are fully covered by the inner manifest; unlisted immutable artifacts fail verification.
 - The sibling outer-hash record must be retained separately from the release directory.
@@ -279,13 +290,13 @@ This candidate is retained only as an audit record. It must not be deployed beca
 | Subagent and cancellation shadow checks | PENDING |
 | Existing Computer Use behavior before/after | PENDING |
 | Telegram bootstrap and setup test | PASS |
-| Current-PC live canary | IN PROGRESS — restored to canary.9; soak clock resets after rollback |
-| Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
+| Current-PC live package | PASS — exact `personal.4` installed, hashes matched, tasks active, online Telegram and actual completion delivery passed |
+| Android Remote / locked-session evidence | PASS — canary.9 passed on PC1 and exact `personal.4` passed on PC2; PC1 exact `personal.4` Telegram display passed after install |
 | 12-hour post-rollback observation | PASS — rebooted Windows task delivered at approximately +14 hours; online doctor `OK` |
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
-| Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; required for PC1 as well as public distribution |
-| Personal exact-hash title-shortening candidate | PC2 QUALIFIED / PC1 BLOCKED — PC2 passed exact `personal.4` in SAC-off direct mode; PC1's inbox SAC reported the exact unsigned supplemental unauthorized and unenforced, then the policy was removed |
+| Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; still required for generally distributed production, not for the completed two-personal-PC exception |
+| Personal exact-hash title-shortening candidate | BOTH QUALIFIED — PC1 and PC2 passed exact `personal.4` in SAC-off direct mode without a supplemental policy; PC1 SAC-off was the user's explicit manual security decision |
 | One additional PC | PASS — PC2 exact identity, online doctor, queue state, rename, reboot, locked-session, Android Remote, and Telegram checks passed on `personal.4` |
 
-PC2 now runs the qualified exact `personal.4` replacement under its unchanged Windows protection. The restored canary.9 installation remains live on PC1 until a publicly trusted signed package passes PC1's equivalent runtime checks. The unsigned supplemental path is closed on PC1 and must not be retried.
+Both personal PCs now run the qualified exact `personal.4` replacement without a supplemental policy. PC1's active-SAC diagnostic remains a valid fail-closed result, and the unsigned supplemental path must not be retried. PC1's SAC-off state is an explicit owner-only exception; Defender, all firewall profiles, VBS, and UAC remained enabled. Public distribution remains gated on trusted signing and the full signed-package qualification.
