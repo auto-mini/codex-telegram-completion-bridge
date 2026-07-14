@@ -110,7 +110,7 @@
 - After rollback, Repair completed with result 0, Drain launched successfully, online doctor returned `OK`, and no new bridge Code Integrity block was recorded.
 - The first post-rollback live completion was received in Telegram and the user observed no Windows blocking notification. The latest online check recorded 13 sent completions, no active doctor condition, and zero post-rollback Code Integrity blocks.
 - Smart App Control was not disabled and no Defender, firewall, certificate-store, or application-control exception was added.
-- Multi-PC rollout remains blocked until the selected production certificate is acquired, every shipped executable and deployment script is signed, and the signed candidate is requalified.
+- Generally distributed multi-PC rollout remains blocked until the selected production certificate is acquired and the signed candidate is requalified. The later two-PC owner-controlled exception supersedes this statement only for the two personal machines.
 
 ## Code-signing decision and readiness
 
@@ -146,10 +146,12 @@
 ## Two-PC deployment scope
 
 - The intended deployment scope is exactly two PCs owned and controlled by the user: the current canary PC and one additional PC. No public end-user or mass binary rollout is planned.
-- The smaller scope reduces rollout work but does not remove the current PC's Windows trust requirement: Smart App Control already blocked the newer unsigned build that implements the 32-grapheme Telegram title display.
+- The smaller scope does not make a new unsigned hash automatically trusted: Smart App Control already blocked the newer unsigned build that implements the 32-grapheme Telegram title display.
 - Title shortening remains a required final feature. Canary.9 (outer manifest SHA-256 `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`) is only the temporary soak and rollback build; its longer title display is not the accepted final state.
-- The default path is to complete the current-PC soak, obtain a Trusted Root Program signature through SignPath or another approved provider, qualify the signed title-shortening build on the current PC, and only then install that identical signed package on the second PC.
-- A temporary canary.9 installation on the second PC is not part of the default plan because it would create avoidable duplicate rollout work and preserve the display defect. Smart App Control must not be changed or bypassed on either PC.
+- The revised private path pilots PC2 first with an unsigned supplemental App Control policy attached to the unchanged standard Smart App Control Base. The policy contains only exact Authenticode hashes for the title-shortening final Bridge/Ctl and canary.9 rollback Bridge/Ctl.
+- PC2 uses a new local Codex task and a secret-free handoff bundle; it cannot open or continue this PC1 task even under the same Codex account.
+- If PC2 has SAC evaluation/unknown state, an additional enforced non-system Base policy, a mismatched standard Base, or a failed policy/executable smoke check, rollout stops without bypassing Windows protection.
+- PC1 remains on canary.9 until PC2 proves this exact policy and package. SignPath remains a free backup and the required path for a generally distributed release.
 
 ## Canary package
 
@@ -194,7 +196,8 @@
 | 12-hour post-rollback observation | PASS — rebooted Windows task delivered at approximately +14 hours; online doctor `OK` |
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
-| Signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration and signed-candidate qualification on the current PC |
-| One additional PC | PENDING until the identical signed title-shortening package passes the current-PC gate |
+| Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; retained as the public-distribution path |
+| Personal exact-hash title-shortening candidate | IN PREPARATION — PC2-first handoff and supplemental-policy verification required; PC1 unchanged |
+| One additional PC | PENDING PC2 readiness, policy activation, four-executable smoke, install, Telegram, restart, lock-screen, and Android Remote checks |
 
-The restored canary.9 installation may remain live on the current PC only as the stable pre-signing canary. Final completion requires the 32-grapheme title build to pass under unchanged Windows protection and then qualify on the one additional PC.
+The restored canary.9 installation remains live on PC1 while PC2 pilots the exact-hash supplemental-policy route. Final two-PC completion requires the 32-grapheme title build to pass under unchanged Windows protection on PC2 and then the same reviewed policy/package to replace canary.9 on PC1.

@@ -13,3 +13,9 @@
 The signing workflow must upload the unsigned package contents as a GitHub Actions artifact, submit that artifact through the official SignPath GitHub action, wait for manual approval, download the signed result, and generate the final manifest only after signing. The final release must verify all four project-maintained signatures and must not sign an upstream binary.
 
 The exact SignPath organization, project, artifact-configuration, and signing-policy slugs are not guessed or committed before the project is accepted. API tokens are stored only as GitHub environment secrets. The `signpath-release` GitHub environment must require manual approval.
+
+## Private two-PC handoff
+
+The owner-controlled PC2 handoff is not a GitHub release. Build the final package, retain canary.9 as rollback, then run `scripts/New-PersonalRolloutBundle.ps1` from a clean tracked worktree. The generator uses ConfigCI to create a supplemental policy targeting the standard Smart App Control Base, removes every policy option except unsigned-policy support, validates exactly 16 per-file Authenticode hash rules, rejects signer/path/publisher/deny rules, and produces a secret-free ZIP with nested and outer SHA-256 manifests.
+
+The handoff is piloted on PC2 first. Do not install the new hash policy or candidate on the currently operational PC1 until PC2 passes activation and execution smoke. SignPath remains the preferred public-distribution path, not a prerequisite for the two owner-controlled PCs.
