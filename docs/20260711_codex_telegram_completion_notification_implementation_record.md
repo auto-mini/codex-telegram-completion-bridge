@@ -146,7 +146,7 @@
 ## Two-PC deployment scope
 
 - The intended deployment scope is exactly two PCs owned and controlled by the user: the current canary PC and one additional PC. No public end-user or mass binary rollout is planned.
-- The smaller scope does not make a new unsigned hash automatically trusted: Smart App Control already blocked the newer unsigned build that implements the 32-grapheme Telegram title display.
+- The smaller scope does not make a new unsigned hash automatically trusted: Smart App Control already blocked a newer unsigned title-shortening build, and every subsequent unsigned build has a distinct hash. The accepted display limit is 12 Unicode grapheme clusters plus one ellipsis when truncated.
 - Title shortening remains a required final feature. Canary.9 (outer manifest SHA-256 `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`) is only the temporary soak and rollback build; its longer title display is not the accepted final state.
 - The revised private path pilots PC2 first with an unsigned supplemental App Control policy attached to the unchanged standard Smart App Control Base. The policy contains only exact Authenticode hashes for the title-shortening final Bridge/Ctl and canary.9 rollback Bridge/Ctl.
 - PC2 uses a new local Codex task and a secret-free handoff bundle; it cannot open or continue this PC1 task even under the same Codex account.
@@ -155,7 +155,7 @@
 
 ## Superseded PC2 handoff candidate (2026-07-14, personal.1)
 
-This candidate is retained only as an audit record. It must not be deployed because the user subsequently reduced the Telegram title-display limit from 32 to 12 grapheme clusters; `personal.2` supersedes it.
+This candidate is retained only as an audit record. It must not be deployed because the user subsequently reduced the Telegram title-display limit from 32 to 12 grapheme clusters; `personal.2` initially superseded it and `personal.3` is the current candidate.
 
 - Tooling commits: `c054e52` (fail-closed rollout), `9c07a56` (minimal secret-free payload), and `3d3b4be` (Windows PowerShell path compatibility).
 - Final payload version: `1.0.0-personal.1`; source package outer manifest SHA-256 `463da2e782377787caea6f552070631b4f5cf40e8899115ba62d8082a03fd342`.
@@ -171,7 +171,7 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - A fresh Release restore/build completed with zero warnings and zero errors. Fresh test execution on PC1 was not possible because SAC blocked the newly rebuilt test DLL hash (`0x800711C7`); the prior 81 unit + 85 integration result remains historical evidence, and hosted CI must re-run the exact source before PC2 install.
 - No supplemental policy or final executable was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
 
-## Current PC2 handoff candidate (2026-07-14, personal.2)
+## Superseded deployed PC2 candidate (2026-07-14, personal.2)
 
 - Source commit: `4ed0e8d` — Telegram-visible titles are now limited to the first 12 Unicode grapheme clusters plus one ellipsis when truncated; the full normalized title remains only in the encrypted local envelope.
 - Final payload version: `1.0.0-personal.2`; source package outer manifest SHA-256 `5b3b74c1db3a14b57a280782650dc4a61edae5458376ed34579b113e67a820df`.
@@ -184,7 +184,29 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - Policy structure validation passed: Supplemental Policy, version `1.0.0.2`, only `Enabled:Unsigned System Integrity Policy`, exactly 16 Authenticode/page-hash allow rules for four project executables, zero signer/deny/path/publisher/file-name rules, empty kernel references, and all 16 rules referenced by the user-mode scenario.
 - Validation passed: locked restore, zero-warning/zero-error Release build, 81 unit tests, 85 integration tests, clean NuGet vulnerability audit, formatting verification, PowerShell syntax/safety checks, deterministic two-build package manifest, Code Integrity XSD validation, ZIP round-trip verification, exact 18-entry manifest verification, deliberate tamper rejection, Windows PowerShell 5 integrity/default-path execution, no-`-Apply` install/remove guards, personal-text scan, and Gitleaks with no detected secret.
 - The superseded `personal.1` handoff directory, ZIP, and ZIP-hash sidecar were deleted to prevent accidental deployment. Its source release package and hashes remain as local audit evidence.
+- PC2 installed this candidate in `SAC_OFF_DIRECT_TEST`; the bundled supplemental policy was not installed. Online doctor reported `overall=OK`, live capture, valid Telegram credentials/connectivity, and zero pending/quarantined rows. Reboot, locked-session delivery, and Android Telegram delivery all passed.
+- PC2 then found three promotion-blocking defects: a renamed task could revert to the initial legacy `state_5.sqlite` title after reboot, a title shorter than 12 graphemes could not pass shadow verification, and `Test-PersonalCandidateExecution.ps1` rejected the Bridge's intentional empty argument during parameter binding.
+- After `personal.3` passed static qualification, the `personal.2` handoff directory, ZIP, and ZIP-hash sidecar were deleted to prevent accidental redeployment. Its source release package and recorded hashes remain as local audit evidence.
 - No supplemental policy or `personal.2` executable was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
+
+## Current PC2 handoff candidate (2026-07-14, personal.3)
+
+- Source commit: `7c58956ed27c27dd2d6fa8df4de7695cfed3e2cf`; public Draft PR exact public-safe commit: `80629fb`.
+- The current Codex desktop title from bounded `.codex-global-state.json` metadata now takes precedence over the legacy database title for the same root task ID. Missing metadata falls back to the compatible database; blank, malformed, oversized, or transiently replaced metadata fails closed for retry instead of emitting a stale title.
+- Shadow verification requires the complete title when the normalized title is shorter than 12 grapheme clusters and a prefix of at least 12 grapheme clusters for longer titles. Exact short titles and copied trailing ellipsis variants are accepted; partial short titles are rejected.
+- `Test-PersonalCandidateExecution.ps1` now explicitly permits an empty `Arguments` string while retaining the existing mandatory parameter and expected-exit-code checks.
+- Final payload version: `1.0.0-personal.3`; source package outer manifest SHA-256 `e493c33226a137aa9fc7dcdda2aeaa65be88f395b4300eb08359a103d6d2c8dc`.
+- Final Bridge SHA-256: `e600466d049694ef12ff72e8d1f387493f818706be136732c12777a1658d60db`.
+- Final Ctl SHA-256: `c4c44c1686194678a8954c96b2158d3657bcb28025c91a0cac1deed55fbee37a`.
+- Rollback source remains exact canary.9: outer manifest SHA-256 `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`, Bridge `0094ed449680a2bfc0e3839f8c3f6b578f26a12c0b315d226ce84a8b7dd1d909`, Ctl `323a3949e9f1abbe647b2bfab933e8d591a40ed6a1a347402ac73381f4c5f17d`.
+- Handoff ZIP: `artifacts/handoff/CodexTelegramBridge-PC2-Handoff-1.0.0-personal.3.zip`; SHA-256 `988ff073fb9656b517a4726d14938ada09f29e7960f8e64ad0720cc157555ee3`.
+- Bundle manifest outer SHA-256: `14614d54f13cf1bb5fd1c9ba6504a15b560b82aba3cfc96ee965e1f8ca221a1a`.
+- Supplemental policy ID: `{99348D84-1966-4D30-BB65-1C24E924D5DC}`; standard SAC Base ID `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`; XML SHA-256 `ff67d348b7508b0fd9f4c2b0371729d505c8a407bff3b9a3e234f81f44ac9fdd`; CIP SHA-256 `bce44b379bb33d430f17b1bcd478e16f06e409f447b8523ce9daeec931260bc4`.
+- Policy structure validation passed: Supplemental Policy, version `1.0.0.3`, only `Enabled:Unsigned System Integrity Policy`, exactly 16 Authenticode/page-hash allow rules for four project executables, zero signer/deny/path/publisher/file-name rules, empty kernel references, and all 16 rules referenced by the user-mode scenario.
+- Source validation passed: locked restore, zero-warning/zero-error Release build, 87 unit tests and 91 integration tests locally, the same 87/91 counts on GitHub-hosted Windows for public commit `80629fb`, formatting, transitive NuGet vulnerability audit, PowerShell syntax/safety, Gitleaks, dependency review, secret scan, and CodeQL.
+- Candidate validation passed without launching project executables on PC1: two-build 15-file deterministic package comparison, Code Integrity XSD validation, exact 18-entry/20-file bundle verification, ZIP hash and byte-for-byte round trip, deliberate tamper rejection, Windows PowerShell 5 integrity/policy parsing, no-`-Apply` install/remove guards, fixed empty-argument binding through a system test executable, mock SAC-ready/SAC-off/extra-Base rejection, unsigned four-EXE/no-DLL shape, personal-text scan, and Gitleaks.
+- The exact `personal.3` PC2 readiness, execution smoke, update, rename/restart regression, short-title shadow, Telegram, reboot, lock-screen, and Android Remote requalification remain pending. Because PC2 reported `SAC_OFF_DIRECT_TEST` and installed no `personal.2` supplemental policy, there is no old project policy to remove before the update.
+- No `personal.3` executable or supplemental policy was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
 
 ## Canary package
 
@@ -203,7 +225,8 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - Existing `codex-computer-use.exe turn-ended` is captured under the fixed final-path predicate and invoked independently of Telegram capture success.
 - The exact verified Computer Use `--previous-notify` wrapper is accepted as an active bridge shape; nested bridge execution suppresses a second vendor launch.
 - Malformed, oversized, extra-argument, untrusted-root, and unsupported nested bridge shapes fail closed, including uninstall dangling-reference checks.
-- Shadow verification accepts only an exact PC and a no-echo visible title prefix of at least 12 graphemes; copied UI ellipses are stripped without revealing stored titles.
+- Shadow verification accepts only an exact PC plus either the complete normalized title when it is shorter than 12 graphemes or a visible prefix of at least 12 graphemes for longer titles; copied trailing UI ellipses are handled without revealing stored titles.
+- Root/subagent classification remains fail-closed against the compatible Codex state database. For a classified root, an exact-ID Codex desktop app title overrides the legacy database title; the bounded app-state reader copies only the target title, clears its rented buffer, and retries on malformed or concurrently replaced metadata.
 - Hook mode performs no network I/O.
 - SQLite deduplication, emergency spool, leases, independent resolution/delivery retries, persistent health gates, retention, and corruption markers are implemented.
 - Bot token and selected bot/chat generation are committed as one DPAPI CurrentUser blob.
@@ -230,7 +253,7 @@ This candidate is retained only as an audit record. It must not be deployed beca
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
 | Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; retained as the public-distribution path |
-| Personal exact-hash title-shortening candidate | READY FOR PC2 PILOT — bundle built and statically verified; no policy applied to PC1 |
-| One additional PC | PENDING PC2 readiness, policy activation, four-executable smoke, install, Telegram, restart, lock-screen, and Android Remote checks |
+| Personal exact-hash title-shortening candidate | READY FOR PC2 REQUALIFICATION — `personal.3` bundle built and statically verified; no policy or executable applied to PC1 |
+| One additional PC | `personal.2` delivery passed but candidate was superseded; PENDING exact `personal.3` readiness, four-executable smoke, update, title-regression, Telegram, restart, lock-screen, and Android Remote checks |
 
-The restored canary.9 installation remains live on PC1 while PC2 pilots the exact-hash supplemental-policy route. Final two-PC completion requires the 12-grapheme title build to pass under unchanged Windows protection on PC2 and then the same reviewed policy/package to replace canary.9 on PC1.
+The restored canary.9 installation remains live on PC1 while PC2 requalifies the exact `personal.3` package under its unchanged Windows protection. Final two-PC completion requires `personal.3` to pass PC2 first and then the same reviewed package, with the policy path selected from each PC's fail-closed readiness result, to replace canary.9 on PC1.
