@@ -1,10 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$BundleRoot = (Join-Path $PSScriptRoot "..")
+    [string]$BundleRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($BundleRoot)) {
+    $BundleRoot = Join-Path $PSScriptRoot ".."
+}
 . (Join-Path $PSScriptRoot "PersonalRollout.Common.ps1")
 
 function Invoke-ExpectedProcess {

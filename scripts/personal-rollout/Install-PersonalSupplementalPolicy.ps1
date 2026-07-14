@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$BundleRoot = (Join-Path $PSScriptRoot ".."),
+    [string]$BundleRoot,
     [switch]$Apply
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($BundleRoot)) {
+    $BundleRoot = Join-Path $PSScriptRoot ".."
+}
 . (Join-Path $PSScriptRoot "PersonalRollout.Common.ps1")
 
 if (-not $Apply) {

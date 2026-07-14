@@ -1,15 +1,24 @@
 [CmdletBinding()]
 param(
-    [string]$FinalPackage = (Join-Path $PSScriptRoot "..\artifacts\release\CodexTelegramBridge-1.0.0-personal.1-win-x64"),
-    [string]$RollbackPackage = (Join-Path $PSScriptRoot "..\artifacts\release\CodexTelegramBridge-1.0.0-canary.9-win-x64"),
+    [string]$FinalPackage,
+    [string]$RollbackPackage,
     [string]$BundleVersion = "1.0.0-personal.1",
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\artifacts\handoff")
+    [string]$OutputRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+if ([string]::IsNullOrWhiteSpace($FinalPackage)) {
+    $FinalPackage = Join-Path $repo "artifacts\release\CodexTelegramBridge-1.0.0-personal.1-win-x64"
+}
+if ([string]::IsNullOrWhiteSpace($RollbackPackage)) {
+    $RollbackPackage = Join-Path $repo "artifacts\release\CodexTelegramBridge-1.0.0-canary.9-win-x64"
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $repo "artifacts\handoff"
+}
 $commonScript = Join-Path $repo "scripts\personal-rollout\PersonalRollout.Common.ps1"
 . $commonScript
 
