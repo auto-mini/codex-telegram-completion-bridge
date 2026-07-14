@@ -243,15 +243,44 @@ function Get-PersonalPolicyXmlMetadata {
 
     foreach ($ring in @("final", "rollback")) {
         $payload = $RolloutMetadata.$ring
+        $packageRoot = Resolve-SafeBundlePath -BundleRoot $BundleRoot -RelativePath ([string]$payload.packageRelativePath)
+        $manifestPath = Join-Path $packageRoot "manifest.sha256"
+        if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
+            [string]$payload.packageManifestOuterSha256 -notmatch '^[0-9a-fA-F]{64}$' -or
+            -not [string]::Equals([string]$payload.packageManifestOuterSha256, (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "ROLLOUT_PACKAGE_MANIFEST_MISMATCH"
+        }
+
+        $expectedManifestEntries = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
         foreach ($kind in @("bridge", "ctl")) {
             $relativeProperty = "$kind`RelativePath"
             $hashProperty = "$kind`Sha256"
             $payloadPath = Resolve-SafeBundlePath -BundleRoot $BundleRoot -RelativePath ([string]$payload.$relativeProperty)
+            $expectedName = if ($kind -eq "bridge") { "CodexTelegramBridge.exe" } else { "CodexTelegramCtl.exe" }
+            $expectedPath = Join-Path $packageRoot "bin\$expectedName"
             if (-not (Test-Path -LiteralPath $payloadPath -PathType Leaf) -or
+                -not [string]::Equals($payloadPath, $expectedPath, [StringComparison]::OrdinalIgnoreCase) -or
                 [string]$payload.$hashProperty -notmatch '^[0-9a-fA-F]{64}$' -or
                 -not [string]::Equals([string]$payload.$hashProperty, (Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256).Hash, [StringComparison]::OrdinalIgnoreCase)) {
                 throw "ROLLOUT_EXECUTABLE_METADATA_MISMATCH"
             }
+            [void]$expectedManifestEntries.Add("$(([string]$payload.$hashProperty).ToLowerInvariant())  bin/$expectedName")
+        }
+
+        $manifestEntries = @([IO.File]::ReadAllLines($manifestPath))
+        if ($manifestEntries.Count -ne 2 -or
+            @($manifestEntries | Where-Object { -not $expectedManifestEntries.Remove($_) }).Count -ne 0 -or
+            $expectedManifestEntries.Count -ne 0) {
+            throw "ROLLOUT_PACKAGE_MANIFEST_CONTENT_INVALID"
+        }
+
+        $packageFiles = @(
+            Get-ChildItem -LiteralPath $packageRoot -File -Recurse -Force |
+                ForEach-Object { $_.FullName.Substring($packageRoot.Length).TrimStart('\').Replace('\', '/') }
+        )
+        if ($packageFiles.Count -ne 3 -or
+            @($packageFiles | Where-Object { $_ -notin @("manifest.sha256", "bin/CodexTelegramBridge.exe", "bin/CodexTelegramCtl.exe") }).Count -ne 0) {
+            throw "ROLLOUT_PACKAGE_NOT_MINIMAL"
         }
     }
 

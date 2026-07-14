@@ -122,6 +122,27 @@ function Save-XmlUtf8 {
     }
 }
 
+function New-MinimalPackagePayload {
+    param(
+        [Parameter(Mandatory = $true)][object]$SourcePackage,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    $bin = Join-Path $Destination "bin"
+    New-Item -ItemType Directory -Path $bin -Force | Out-Null
+    foreach ($name in @("CodexTelegramBridge.exe", "CodexTelegramCtl.exe")) {
+        Copy-Item -LiteralPath (Join-Path $SourcePackage.Root "bin\$name") -Destination (Join-Path $bin $name)
+    }
+
+    $lines = @(
+        "$(($SourcePackage.BridgeSha256).ToLowerInvariant())  bin/CodexTelegramBridge.exe",
+        "$(($SourcePackage.CtlSha256).ToLowerInvariant())  bin/CodexTelegramCtl.exe"
+    )
+    $manifest = Join-Path $Destination "manifest.sha256"
+    [IO.File]::WriteAllLines($manifest, [string[]]$lines, (New-Object Text.UTF8Encoding($false)))
+    return (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
 function Assert-CiPolicySchema {
     param([Parameter(Mandatory = $true)][string]$XmlPath)
 
@@ -220,14 +241,10 @@ try {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
 
-    foreach ($item in @(Get-ChildItem -LiteralPath $final.Root -Force)) {
-        Copy-Item -LiteralPath $item.FullName -Destination $finalDestination -Recurse -Force
-    }
-    foreach ($item in @(Get-ChildItem -LiteralPath $rollback.Root -Force)) {
-        Copy-Item -LiteralPath $item.FullName -Destination $rollbackDestination -Recurse -Force
-    }
-    Copy-Item -LiteralPath (Join-Path $final.Root "bin\CodexTelegramBridge.exe"), (Join-Path $final.Root "bin\CodexTelegramCtl.exe") -Destination (Join-Path $scanRoot "final")
-    Copy-Item -LiteralPath (Join-Path $rollback.Root "bin\CodexTelegramBridge.exe"), (Join-Path $rollback.Root "bin\CodexTelegramCtl.exe") -Destination (Join-Path $scanRoot "rollback")
+    $finalPayloadManifest = New-MinimalPackagePayload -SourcePackage $final -Destination $finalDestination
+    $rollbackPayloadManifest = New-MinimalPackagePayload -SourcePackage $rollback -Destination $rollbackDestination
+    Copy-Item -LiteralPath (Join-Path $finalDestination "bin\CodexTelegramBridge.exe"), (Join-Path $finalDestination "bin\CodexTelegramCtl.exe") -Destination (Join-Path $scanRoot "final")
+    Copy-Item -LiteralPath (Join-Path $rollbackDestination "bin\CodexTelegramBridge.exe"), (Join-Path $rollbackDestination "bin\CodexTelegramCtl.exe") -Destination (Join-Path $scanRoot "rollback")
 
     Import-Module ConfigCI -ErrorAction Stop
     $policyName = "CodexTelegramBridge-Personal-Allow"
@@ -281,7 +298,8 @@ try {
         final = [ordered]@{
             version = $final.Version
             packageRelativePath = "packages/final"
-            packageManifestOuterSha256 = $final.ManifestOuterSha256
+            packageManifestOuterSha256 = $finalPayloadManifest
+            sourcePackageManifestOuterSha256 = $final.ManifestOuterSha256
             bridgeRelativePath = "packages/final/bin/CodexTelegramBridge.exe"
             bridgeSha256 = $final.BridgeSha256
             ctlRelativePath = "packages/final/bin/CodexTelegramCtl.exe"
@@ -290,7 +308,8 @@ try {
         rollback = [ordered]@{
             version = $rollback.Version
             packageRelativePath = "packages/rollback"
-            packageManifestOuterSha256 = $rollback.ManifestOuterSha256
+            packageManifestOuterSha256 = $rollbackPayloadManifest
+            sourcePackageManifestOuterSha256 = $rollback.ManifestOuterSha256
             bridgeRelativePath = "packages/rollback/bin/CodexTelegramBridge.exe"
             bridgeSha256 = $rollback.BridgeSha256
             ctlRelativePath = "packages/rollback/bin/CodexTelegramCtl.exe"
@@ -322,6 +341,20 @@ try {
     )
     if ($secretLikeFiles.Count -ne 0) {
         throw "BUNDLE_SECRET_LIKE_FILE_REJECTED"
+    }
+
+    $forbiddenText = @($env:COMPUTERNAME, $env:USERPROFILE, $repo) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $textExtensions = @(".md", ".json", ".xml", ".txt", ".ps1", ".sha256")
+    foreach ($file in @(Get-ChildItem -LiteralPath $staging -File -Recurse -Force | Where-Object { $_.Extension -in $textExtensions })) {
+        $text = Get-Content -LiteralPath $file.FullName -Raw
+        foreach ($forbidden in $forbiddenText) {
+            if ($text.IndexOf($forbidden, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                throw "BUNDLE_PERSONAL_TEXT_REJECTED"
+            }
+        }
+        if ($text -match '(?<![A-Za-z0-9_])[0-9]{8,10}:[A-Za-z0-9_-]{30,}(?![A-Za-z0-9_-])') {
+            throw "BUNDLE_TOKEN_SHAPE_REJECTED"
+        }
     }
 
     Move-Item -LiteralPath $staging -Destination $bundle
