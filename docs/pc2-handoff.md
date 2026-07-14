@@ -38,13 +38,16 @@
    & .\scripts\Start-PersonalBridgeInstall.ps1 -PcAlias $env:COMPUTERNAME
    ```
 
-6. 별도 창에 설치 완료가 표시되면 Codex를 다시 열고 이 PC에서 만든 새 작업으로 돌아온다. 설치 상태를 점검한 뒤 동일 Telegram 봇을 이 PC에 별도로 설정한다. 첫 번째 PC의 DPAPI 파일이나 토큰 파일은 복사하지 않는다. 사용자가 BotFather 토큰을 직접 입력하고 Telegram 1:1 채팅으로 챌린지를 보낸다.
+6. 별도 창에 설치 완료가 표시되면 Codex를 다시 열고 이 PC에서 만든 새 작업으로 돌아온다. 먼저 온라인 상태를 점검한다. 기존 설치의 업그레이드라면 Telegram 자격증명, capture 모드와 pause 상태가 보존되어야 하므로 `telegram bootstrap`을 다시 실행하지 않는다. 자격증명 누락이나 모드 변경이 보이면 새 설정으로 덮지 말고 중지해 보고한다. 신규 설치일 때만 첫 번째 PC의 DPAPI 파일이나 토큰 파일을 복사하지 않고, 사용자가 BotFather 토큰을 직접 입력해 동일 봇을 이 PC 사용자 컨텍스트에 별도로 설정한다.
 
    ```powershell
-   & "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe" telegram bootstrap
+   $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
+   & $ctl doctor --online
+   # 신규 설치에서만 실행:
+   & $ctl telegram bootstrap
    ```
 
-7. Shadow 확인, live 전환, 실제 완료 알림, 재부팅과 잠금 화면 검증을 이 PC에서 독립적으로 수행한다. Shadow 제목이 12자소 미만이면 전체 제목을 입력하고, 12자소 이상이면 앞 12자소 이상의 prefix를 입력한다. 문제가 생기면 `doctor --online` 결과와 `rollout.json`의 정책 ID만 첫 번째 PC 작업에 전달하고 토큰·DPAPI·DB·로그 원문은 전달하지 않는다.
+7. 신규 설치에서는 Shadow 확인과 live 전환을 수행한다. 업그레이드에서는 보존된 과거 Shadow 행이 있으면 새 Ctl로 다시 검증할 수 있다. Shadow 제목이 12자소 미만이면 전체 제목을 입력하고, 12자소 이상이면 앞 12자소 이상의 prefix를 입력한다. 이어서 실제 완료 알림, 제목 변경 전후 알림, 재부팅 뒤 같은 작업의 변경 제목 유지, 잠금 화면과 Android Remote를 이 PC에서 독립적으로 검증한다. 문제가 생기면 `doctor --online` 결과와 `rollout.json`의 정책 ID만 첫 번째 PC 작업에 전달하고 토큰·DPAPI·DB·로그 원문은 전달하지 않는다.
 
 ## 강제 중지 조건
 
