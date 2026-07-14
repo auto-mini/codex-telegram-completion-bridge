@@ -25,7 +25,7 @@ Security boundaries include:
 
 See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), the [validation status](docs/validation.md), and the [code signing policy](docs/code-signing-policy.md).
 
-For the project owner's two-PC deployment only, [the personal rollout record](docs/personal-two-pc-rollout.md) documents PC2's qualified Smart App Control-off direct install and PC1's fail-closed rejection of the unsigned supplemental policy. The bundle no longer installs that policy. PC1 remains on the proven canary until a publicly trusted signed build qualifies, without disabling Windows protections.
+For the project owner's two-PC deployment only, [the personal rollout record](docs/personal-two-pc-rollout.md) documents both machines' exact `personal.4` qualification in `SAC_OFF_DIRECT_TEST`. PC1 first rejected and removed the unsigned supplemental under active Smart App Control; after a separate risk review, the owner manually turned off only Smart App Control on that personal machine and qualified the same package. The bundle neither changes Smart App Control nor installs the supplemental policy. This owner-specific choice is not a public deployment recommendation; generally distributed builds still require the signed-release gate above.
 
 ## Requirements
 

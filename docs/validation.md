@@ -18,7 +18,11 @@ An attempted new unsigned executable hash was blocked by Smart App Control and w
 
 The current public source includes the shorter 12-grapheme Telegram title display. PC2 confirmed the final title resolver and display with exact `personal.4`: online doctor was healthy, the renamed title remained correct immediately and after restart, and locked-session Android Remote delivery passed. PC2 was in `SAC_OFF_DIRECT_TEST`, so no supplemental policy was installed.
 
-PC1 then exercised the exact `personal.4` policy ID under active inbox Smart App Control. Four consecutive `CiTool` observations showed the expected identity and `IsOnDisk=true`, but `IsAuthorized=false` and `IsEnforced=false`. The exact policy was removed successfully, no candidate executable was launched, and canary.9 remained installed. Readiness now fails closed unless the exact policy is already present, identity-valid, on disk, authorized, and enforced; the bundle's policy script no longer installs a policy.
+PC1 then exercised the exact `personal.4` policy ID under active inbox Smart App Control. Four consecutive `CiTool` observations showed the expected identity and `IsOnDisk=true`, but `IsAuthorized=false` and `IsEnforced=false`. The exact policy was removed successfully and no candidate executable was launched while SAC remained active. Readiness now fails closed unless the exact policy is already present, identity-valid, on disk, authorized, and enforced; the bundle's policy script no longer installs a policy.
+
+After a separate risk review, the owner manually turned off only Smart App Control on PC1 through Windows Security. The bundle did not change the setting. Bundle integrity and direct execution of the final and rollback Bridge/Ctl pairs passed with all four expected exit codes. The detached transactional install completed, installed hashes matched exact `personal.4`, scheduled tasks were enabled, Telegram credentials/connectivity were healthy, and actual Telegram delivery showed the expected machine field and 12-grapheme title prefix. Defender protections and all firewall profiles remained enabled; VBS and UAC also remained active.
+
+PC1's post-upgrade online doctor is `DEGRADED` only because seven historical `THREAD_STATE_TIMEOUT` quarantine rows and five old pending rows remain from the prior canary. Live capture, delivery, package, tasks, credentials, upstream integration, and Telegram connectivity are healthy, and a new send succeeded. Those historical rows were listed but were not automatically acknowledged, deleted, or replayed.
 
 ## Public source and package checks
 
@@ -49,6 +53,6 @@ The following remain mandatory before a generally distributed production release
 
 ## Two-PC personal deployment status
 
-The owner-controlled PC2 is qualified on exact `personal.4` in SAC-off direct mode. This is evidence for that machine, not a public trust substitute and not proof that an unsigned supplemental works under active Smart App Control.
+Both owner-controlled PCs are qualified on exact `personal.4` in SAC-off direct mode, without a supplemental policy. PC1 first failed closed under active SAC, removed the unauthorized/unenforced diagnostic policy, and was upgraded only after the owner separately and explicitly chose to turn off SAC on that personal machine.
 
-PC1 is intentionally not upgraded: its inbox Smart App Control Base did not authorize the exact unsigned supplemental. A separate exact-hash Base is not an alternative because multiple enforced Base policies combine as an intersection and could block unrelated applications. PC1's 12-grapheme upgrade therefore waits for the publicly trusted signing path and full signed-package qualification.
+This is evidence for those two machines, not a public trust substitute and not proof that an unsigned supplemental works under active Smart App Control. A separate exact-hash Base remains unsafe because multiple enforced Base policies combine as an intersection and could block unrelated applications. Public distribution still waits for a publicly trusted signing path and full signed-package qualification.

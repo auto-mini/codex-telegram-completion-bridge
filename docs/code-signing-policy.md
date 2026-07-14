@@ -58,6 +58,8 @@ Until all gates pass, public assets remain explicitly unsigned and are not repre
 
 ## Owner-controlled two-PC result
 
-PC2 qualified the exact `personal.4` package only in `SAC_OFF_DIRECT_TEST`, without installing a supplemental policy. PC1's active inbox Smart App Control Base placed the exact unsigned supplemental on disk but reported it as unauthorized and unenforced. The diagnostic policy was then removed completely, and no candidate executable was launched on PC1.
+PC2 qualified the exact `personal.4` package in `SAC_OFF_DIRECT_TEST`, without installing a supplemental policy. PC1's active inbox Smart App Control Base first placed the exact unsigned supplemental on disk but reported it as unauthorized and unenforced. The diagnostic policy was removed completely, and no candidate executable was launched while Smart App Control remained active.
 
-The unsigned supplemental is therefore not an accepted signing exception for PC1. PC1 remains on the proven canary until a publicly trusted Authenticode-signed build passes the same runtime qualification. Smart App Control, Defender, Secure Boot, VBS, and the inbox Base policies remain unchanged.
+After a separate risk review, the owner explicitly chose to turn off only Smart App Control on that personal PC through Windows Security. The bundle did not make that change. PC1 then qualified the same exact `personal.4` hashes through direct execution, transactional installation, scheduled-task, Telegram online, actual-delivery, and 12-grapheme display checks. Defender protections, all firewall profiles, VBS, and UAC remained enabled; no supplemental policy was installed.
+
+This owner-controlled two-machine exception does not alter the public signing policy. It is neither an accepted signing substitute nor a recommendation to disable Smart App Control for an unsigned public preview. A generally distributed release still requires a publicly trusted Authenticode signature and the full activation gate above.
