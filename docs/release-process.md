@@ -16,6 +16,6 @@ The exact SignPath organization, project, artifact-configuration, and signing-po
 
 ## Private two-PC handoff
 
-The owner-controlled PC2 handoff is not a GitHub release. Build the final package, retain canary.9 as rollback, then run `scripts/New-PersonalRolloutBundle.ps1` from a clean tracked worktree. The generator uses ConfigCI to create a supplemental policy targeting the standard Smart App Control Base, removes every policy option except unsigned-policy support, validates exactly 16 per-file Authenticode hash rules, rejects signer/path/publisher/deny rules, and produces a secret-free ZIP with nested and outer SHA-256 manifests.
+The owner-controlled PC2 handoff is not a GitHub release. Build the final package, retain canary.9 as rollback, then run `scripts/New-PersonalRolloutBundle.ps1` from a clean tracked worktree. The generator retains a ConfigCI exact-hash supplemental as a validated diagnostic artifact, but the runtime installer does not add it. The bundle rejects path, publisher, wildcard, signer, deny, and allow-all rules and produces a secret-free ZIP with nested and outer SHA-256 manifests.
 
-The handoff is piloted on PC2 first. Do not install the new hash policy or candidate on the currently operational PC1 until PC2 passes activation and execution smoke. SignPath remains the preferred public-distribution path, not a prerequisite for the two owner-controlled PCs.
+PC2 qualified exact `personal.4` in `SAC_OFF_DIRECT_TEST` without a supplemental. PC1's active inbox Smart App Control Base did not authorize the exact unsigned supplemental, so PC1 remains on canary.9 and must not run the unsigned candidate. SignPath is now required for PC1's accepted 12-grapheme upgrade as well as for generally distributed production releases.

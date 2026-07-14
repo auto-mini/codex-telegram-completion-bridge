@@ -67,7 +67,11 @@ try {
     $policies = Get-CiPolicyInventory
     $readiness = Get-PersonalRolloutReadiness -Policies $policies -PolicyMetadata $policy
 
-    if ($readiness.Mode -eq "SAC_ENFORCED_READY" -and -not $readiness.ProjectPolicyEnforced) {
+    if ($readiness.Mode -eq "SAC_ENFORCED_READY" -and
+        (-not $readiness.ProjectPolicyIdentityValid -or
+            -not $readiness.ProjectPolicyOnDisk -or
+            -not $readiness.ProjectPolicyAuthorized -or
+            -not $readiness.ProjectPolicyEnforced)) {
         throw "PROJECT_POLICY_NOT_ACTIVE"
     }
     if ($readiness.Mode -notin @("SAC_ENFORCED_READY", "SAC_OFF_DIRECT_TEST")) {

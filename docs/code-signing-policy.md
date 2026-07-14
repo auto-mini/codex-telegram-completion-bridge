@@ -56,6 +56,8 @@ A SignPath-signed release may be published only after:
 
 Until all gates pass, public assets remain explicitly unsigned and are not represented as generally deployable production releases.
 
-## Owner-controlled two-PC exception
+## Owner-controlled two-PC result
 
-Public Authenticode trust is not required for the separately documented two-PC personal pilot. That path is limited to two machines owned by the same user and uses an exact-hash unsigned supplemental App Control policy under the standard Smart App Control Base. It does not disable or replace Smart App Control, Defender, Secure Boot, VBS, or another Base policy, and it is not published as a broadly compatible release mechanism. The public signing gates above remain unchanged.
+PC2 qualified the exact `personal.4` package only in `SAC_OFF_DIRECT_TEST`, without installing a supplemental policy. PC1's active inbox Smart App Control Base placed the exact unsigned supplemental on disk but reported it as unauthorized and unenforced. The diagnostic policy was then removed completely, and no candidate executable was launched on PC1.
+
+The unsigned supplemental is therefore not an accepted signing exception for PC1. PC1 remains on the proven canary until a publicly trusted Authenticode-signed build passes the same runtime qualification. Smart App Control, Defender, Secure Boot, VBS, and the inbox Base policies remain unchanged.

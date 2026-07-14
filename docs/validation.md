@@ -16,7 +16,9 @@ The pre-public canary has demonstrated:
 
 An attempted new unsigned executable hash was blocked by Smart App Control and was rolled back transactionally to the previously exercised canary. Smart App Control and Microsoft Defender were not disabled and no exclusion was created. This incident is why unsigned public previews are not treated as generally deployable production releases.
 
-The current public source includes the shorter 12-grapheme Telegram title display. PC2 confirmed that display, restart recovery, locked-session delivery, and Android Remote delivery with `personal.2`, but also exposed three pre-promotion defects: a renamed title could fall back to the stale legacy database value after restart, short titles could not pass shadow verification, and the candidate smoke script rejected an empty Bridge argument during parameter binding. `personal.3` fixed the short-title and smoke defects and again passed upgrade, doctor, reboot, locked-session, and Android delivery checks, but its rename test failed because it treated a separately generated desktop description as the task title. The current source instead reads Codex's newest valid exact-thread `session_index.jsonl` name and retains the legacy database only as the no-name fallback. PC2 subsequently qualified the exact `personal.4` candidate: online doctor was healthy with live capture and empty queues, and the renamed title remained correct immediately, after reboot on the same task, and through locked-session Android Remote delivery.
+The current public source includes the shorter 12-grapheme Telegram title display. PC2 confirmed the final title resolver and display with exact `personal.4`: online doctor was healthy, the renamed title remained correct immediately and after restart, and locked-session Android Remote delivery passed. PC2 was in `SAC_OFF_DIRECT_TEST`, so no supplemental policy was installed.
+
+PC1 then exercised the exact `personal.4` policy ID under active inbox Smart App Control. Four consecutive `CiTool` observations showed the expected identity and `IsOnDisk=true`, but `IsAuthorized=false` and `IsEnforced=false`. The exact policy was removed successfully, no candidate executable was launched, and canary.9 remained installed. Readiness now fails closed unless the exact policy is already present, identity-valid, on disk, authorized, and enforced; the bundle's policy script no longer installs a policy.
 
 ## Public source and package checks
 
@@ -45,8 +47,8 @@ The following remain mandatory before a generally distributed production release
 4. current-PC install, direct launch, scheduled-task, Telegram, restart, locked-session, Android Remote, and uninstall tests pass on the exact signed package; and
 5. the signed deployment completes the planned 12-, 24-, and 48-hour observation gates.
 
-## Two-PC personal pilot gate
+## Two-PC personal deployment status
 
-The second owner-controlled PC uses a separate, fail-closed qualification path documented in `personal-two-pc-rollout.md`. It keeps the standard Smart App Control Base policy active and, only when that exact Base is enforced and permits supplementals, adds an unsigned supplemental policy containing 16 Authenticode hash rules for the final and rollback Bridge/Ctl executables. It adds no path, publisher, wildcard, signer, deny, or allow-all rule.
+The owner-controlled PC2 is qualified on exact `personal.4` in SAC-off direct mode. This is evidence for that machine, not a public trust substitute and not proof that an unsigned supplemental works under active Smart App Control.
 
-This personal path is not a public trust substitute. PC2 passed bundle and candidate execution checks, installation, online doctor, Telegram/live delivery, rename persistence, reboot, lock-screen, and Android Remote on the exact `personal.4` candidate. PC1 remains on canary.9 pending rollout and equivalent qualification of the same reviewed package under PC1's own fail-closed readiness result.
+PC1 is intentionally not upgraded: its inbox Smart App Control Base did not authorize the exact unsigned supplemental. A separate exact-hash Base is not an alternative because multiple enforced Base policies combine as an intersection and could block unrelated applications. PC1's 12-grapheme upgrade therefore waits for the publicly trusted signing path and full signed-package qualification.

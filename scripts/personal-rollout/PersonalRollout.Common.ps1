@@ -394,7 +394,7 @@ function Get-CiPolicyInventory {
 
 function Get-PolicyById {
     param(
-        [Parameter(Mandatory = $true)][object[]]$Policies,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Policies,
         [Parameter(Mandatory = $true)][string]$PolicyId
     )
 
@@ -402,26 +402,160 @@ function Get-PolicyById {
     return @($Policies | Where-Object { (ConvertTo-NormalizedGuid $_.PolicyID) -eq $normalized })
 }
 
-function Test-SmartAppControlExamplePolicy {
-    $path = Join-Path $env:windir "schemas\CodeIntegrity\ExamplePolicies\SmartAppControl.xml"
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        return $false
+function Get-CiBooleanProperty {
+    param(
+        [Parameter(Mandatory = $true)][object]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return [pscustomobject]@{ Valid = $false; Value = $false }
     }
 
     try {
-        [xml]$xml = Get-Content -LiteralPath $path -Raw
-        $namespace = New-Object Xml.XmlNamespaceManager($xml.NameTable)
-        $namespace.AddNamespace("c", "urn:schemas-microsoft-com:sipolicy")
-        $baseId = ConvertTo-NormalizedGuid $xml.SiPolicy.BasePolicyID
-        $policyId = ConvertTo-NormalizedGuid $xml.SiPolicy.PolicyID
-        $options = @($xml.SelectNodes("//c:Rules/c:Rule/c:Option", $namespace) | ForEach-Object { $_.'#text' })
-        return $baseId -eq $script:SacEnforcementBasePolicyId -and
-            $policyId -eq $script:SacEnforcementBasePolicyId -and
-            $options -contains "Enabled:Allow Supplemental Policies" -and
-            $options -contains "Enabled:Unsigned System Integrity Policy"
+        return [pscustomobject]@{ Valid = $true; Value = (ConvertTo-StrictBoolean $property.Value) }
     }
     catch {
-        return $false
+        return [pscustomobject]@{ Valid = $false; Value = $false }
+    }
+}
+
+function Get-PersonalProjectPolicyState {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Policies,
+        [Parameter(Mandatory = $true)][object]$PolicyMetadata
+    )
+
+    $matches = @(Get-PolicyById -Policies $Policies -PolicyId $PolicyMetadata.PolicyId)
+    $identityValid = $false
+    $onDisk = $false
+    $authorized = $false
+    $enforced = $false
+
+    if ($matches.Count -eq 1) {
+        $policy = $matches[0]
+        $basePolicyId = $null
+        $basePolicyProperty = $policy.PSObject.Properties["BasePolicyID"]
+        if ($null -ne $basePolicyProperty) {
+            try {
+                $basePolicyId = ConvertTo-NormalizedGuid $basePolicyProperty.Value
+            }
+            catch {
+                $basePolicyId = $null
+            }
+        }
+
+        $friendlyNameProperty = $policy.PSObject.Properties["FriendlyName"]
+        $versionProperty = $policy.PSObject.Properties["VersionString"]
+        $optionsProperty = $policy.PSObject.Properties["PolicyOptions"]
+        $options = @(
+            if ($null -ne $optionsProperty) {
+                $optionsProperty.Value | ForEach-Object { [string]$_ }
+            }
+        )
+
+        $systemPolicy = Get-CiBooleanProperty -InputObject $policy -Name "IsSystemPolicy"
+        $signedPolicy = Get-CiBooleanProperty -InputObject $policy -Name "IsSignedPolicy"
+        $onDiskState = Get-CiBooleanProperty -InputObject $policy -Name "IsOnDisk"
+        $authorizedState = Get-CiBooleanProperty -InputObject $policy -Name "IsAuthorized"
+        $enforcedState = Get-CiBooleanProperty -InputObject $policy -Name "IsEnforced"
+
+        $identityValid = $basePolicyId -eq (ConvertTo-NormalizedGuid $PolicyMetadata.BasePolicyId) -and
+            $null -ne $friendlyNameProperty -and
+            [string]::Equals([string]$friendlyNameProperty.Value, [string]$PolicyMetadata.FriendlyName, [StringComparison]::Ordinal) -and
+            $null -ne $versionProperty -and
+            [string]::Equals([string]$versionProperty.Value, [string]$PolicyMetadata.Version, [StringComparison]::Ordinal) -and
+            $systemPolicy.Valid -and -not $systemPolicy.Value -and
+            $signedPolicy.Valid -and -not $signedPolicy.Value -and
+            $null -ne $optionsProperty -and
+            $options.Count -eq 1 -and
+            [string]::Equals($options[0], "Enabled:Unsigned System Integrity Policy", [StringComparison]::Ordinal)
+        $onDisk = $onDiskState.Valid -and $onDiskState.Value
+        $authorized = $authorizedState.Valid -and $authorizedState.Value
+        $enforced = $enforcedState.Valid -and $enforcedState.Value
+    }
+
+    return [pscustomobject]@{
+        Count = $matches.Count
+        Present = ($matches.Count -eq 1)
+        IdentityValid = $identityValid
+        OnDisk = $onDisk
+        Authorized = $authorized
+        Enforced = $enforced
+        Eligible = ($matches.Count -eq 1 -and $identityValid -and $onDisk -and $authorized -and $enforced)
+    }
+}
+
+function Get-PersonalRolloutDecision {
+    param(
+        [Parameter(Mandatory = $true)][int]$Build,
+        [AllowNull()][object]$SmartAppControlState,
+        [Parameter(Mandatory = $true)][int]$SacBaseCount,
+        [Parameter(Mandatory = $true)][int]$ExtraBasePolicyCount,
+        [Parameter(Mandatory = $true)][object]$ProjectPolicyState
+    )
+
+    $reasons = New-Object 'System.Collections.Generic.List[string]'
+    if ($Build -lt 22621) {
+        $reasons.Add("WINDOWS_11_22H2_OR_NEWER_REQUIRED")
+    }
+    if ($ExtraBasePolicyCount -ne 0) {
+        $reasons.Add("ADDITIONAL_ENFORCED_BASE_POLICY_DETECTED")
+    }
+    if ($ProjectPolicyState.Count -gt 1) {
+        $reasons.Add("PROJECT_POLICY_INVENTORY_AMBIGUOUS")
+    }
+
+    $mode = "BLOCKED"
+    if ($SmartAppControlState -eq 1) {
+        if ($SacBaseCount -ne 1) {
+            $reasons.Add("SAC_ENFORCEMENT_BASE_NOT_ACTIVE")
+        }
+
+        if ($ProjectPolicyState.Count -eq 0) {
+            $reasons.Add("SAC_UNSIGNED_SUPPLEMENTAL_NOT_AUTHORIZED")
+        }
+        elseif ($ProjectPolicyState.Count -eq 1) {
+            if (-not $ProjectPolicyState.IdentityValid) {
+                $reasons.Add("PROJECT_POLICY_IDENTITY_MISMATCH")
+            }
+            if (-not $ProjectPolicyState.OnDisk) {
+                $reasons.Add("PROJECT_POLICY_NOT_ON_DISK")
+            }
+            if (-not $ProjectPolicyState.Authorized) {
+                $reasons.Add("PROJECT_POLICY_NOT_AUTHORIZED")
+            }
+            if (-not $ProjectPolicyState.Enforced) {
+                $reasons.Add("PROJECT_POLICY_NOT_ENFORCED")
+            }
+        }
+
+        if ($reasons.Count -eq 0) {
+            $mode = "SAC_ENFORCED_READY"
+        }
+    }
+    elseif ($SmartAppControlState -eq 0) {
+        if ($SacBaseCount -ne 0) {
+            $reasons.Add("SAC_STATE_POLICY_MISMATCH")
+        }
+        if ($ProjectPolicyState.Count -ne 0) {
+            $reasons.Add("PROJECT_POLICY_UNEXPECTED_WHILE_SAC_OFF")
+        }
+        if ($reasons.Count -eq 0) {
+            $mode = "SAC_OFF_DIRECT_TEST"
+        }
+    }
+    elseif ($SmartAppControlState -eq 2) {
+        $reasons.Add("SAC_EVALUATION_NOT_SUPPORTED_FOR_PILOT")
+    }
+    else {
+        $reasons.Add("SAC_STATE_UNKNOWN")
+    }
+
+    return [pscustomobject]@{
+        Mode = $mode
+        Reasons = @($reasons)
     }
 }
 
@@ -441,12 +575,10 @@ function Get-PersonalRolloutReadiness {
         $sacValue = $null
     }
 
-    $reasons = New-Object 'System.Collections.Generic.List[string]'
-    if ($build -lt 22621) {
-        $reasons.Add("WINDOWS_11_22H2_OR_NEWER_REQUIRED")
-    }
-
-    $enforced = @($Policies | Where-Object { ConvertTo-StrictBoolean $_.IsEnforced })
+    $enforced = @($Policies | Where-Object {
+        $state = Get-CiBooleanProperty -InputObject $_ -Name "IsEnforced"
+        $state.Valid -and $state.Value
+    })
     $sacBase = @(Get-PolicyById -Policies $enforced -PolicyId $script:SacEnforcementBasePolicyId | Where-Object {
         (ConvertTo-NormalizedGuid $_.BasePolicyID) -eq $script:SacEnforcementBasePolicyId -and
         [string]::Equals([string]$_.FriendlyName, $script:SacEnforcementFriendlyName, [StringComparison]::Ordinal)
@@ -458,45 +590,12 @@ function Get-PersonalRolloutReadiness {
         $isSystem = if ($null -ne $_.PSObject.Properties["IsSystemPolicy"]) { ConvertTo-StrictBoolean $_.IsSystemPolicy } else { $false }
         $id -eq $base -and $id -ne $script:SacEnforcementBasePolicyId -and -not $isSystem
     })
-    if ($extraBasePolicies.Count -ne 0) {
-        $reasons.Add("ADDITIONAL_ENFORCED_BASE_POLICY_DETECTED")
-    }
-
-    $projectPolicies = @(Get-PolicyById -Policies $Policies -PolicyId $PolicyMetadata.PolicyId)
-    if ($projectPolicies.Count -gt 1) {
-        $reasons.Add("PROJECT_POLICY_INVENTORY_AMBIGUOUS")
-    }
-
-    $mode = "BLOCKED"
-    if ($sacValue -eq 1) {
-        if ($sacBase.Count -ne 1) {
-            $reasons.Add("SAC_ENFORCEMENT_BASE_NOT_ACTIVE")
-        }
-        elseif (-not (Test-SmartAppControlExamplePolicy)) {
-            $reasons.Add("SAC_SUPPLEMENTAL_CAPABILITY_NOT_VERIFIED")
-        }
-        elseif ($reasons.Count -eq 0) {
-            $mode = "SAC_ENFORCED_READY"
-        }
-    }
-    elseif ($sacValue -eq 0) {
-        if ($sacBase.Count -ne 0) {
-            $reasons.Add("SAC_STATE_POLICY_MISMATCH")
-        }
-        elseif ($reasons.Count -eq 0) {
-            $mode = "SAC_OFF_DIRECT_TEST"
-        }
-    }
-    elseif ($sacValue -eq 2) {
-        $reasons.Add("SAC_EVALUATION_NOT_SUPPORTED_FOR_PILOT")
-    }
-    else {
-        $reasons.Add("SAC_STATE_UNKNOWN")
-    }
+    $projectPolicyState = Get-PersonalProjectPolicyState -Policies $Policies -PolicyMetadata $PolicyMetadata
+    $decision = Get-PersonalRolloutDecision -Build $build -SmartAppControlState $sacValue -SacBaseCount $sacBase.Count -ExtraBasePolicyCount $extraBasePolicies.Count -ProjectPolicyState $projectPolicyState
 
     return [pscustomobject]@{
-        Mode = $mode
-        Reasons = @($reasons)
+        Mode = $decision.Mode
+        Reasons = @($decision.Reasons)
         IsAdministrator = Test-IsAdministrator
         ProductName = [string]$operatingSystem.ProductName
         EditionId = [string]$operatingSystem.EditionID
@@ -504,8 +603,11 @@ function Get-PersonalRolloutReadiness {
         Build = $build
         SmartAppControlState = $sacValue
         SacBaseActive = ($sacBase.Count -eq 1)
-        ProjectPolicyPresent = ($projectPolicies.Count -eq 1)
-        ProjectPolicyEnforced = ($projectPolicies.Count -eq 1 -and (ConvertTo-StrictBoolean $projectPolicies[0].IsEnforced))
+        ProjectPolicyPresent = $projectPolicyState.Present
+        ProjectPolicyIdentityValid = $projectPolicyState.IdentityValid
+        ProjectPolicyOnDisk = $projectPolicyState.OnDisk
+        ProjectPolicyAuthorized = $projectPolicyState.Authorized
+        ProjectPolicyEnforced = $projectPolicyState.Enforced
         ExtraBasePolicyCount = $extraBasePolicies.Count
     }
 }
@@ -521,7 +623,7 @@ function Wait-ForPolicyState {
     do {
         $policies = Get-CiPolicyInventory
         $matches = @(Get-PolicyById -Policies $policies -PolicyId $PolicyId)
-        $isPresent = $matches.Count -eq 1 -and (ConvertTo-StrictBoolean $matches[0].IsEnforced)
+        $isPresent = $matches.Count -ne 0
         if ($isPresent -eq $Present) {
             return [pscustomobject]@{ Matched = $true; Policies = $policies; Policy = if ($matches.Count -eq 1) { $matches[0] } else { $null } }
         }

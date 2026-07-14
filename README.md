@@ -25,7 +25,7 @@ Security boundaries include:
 
 See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), the [validation status](docs/validation.md), and the [code signing policy](docs/code-signing-policy.md).
 
-For the project owner's two-PC private pilot only, [the personal rollout design](docs/personal-two-pc-rollout.md) describes a fail-closed exact-hash supplemental Smart App Control policy. It is not a general unsigned-install recommendation and never disables Windows protections.
+For the project owner's two-PC deployment only, [the personal rollout record](docs/personal-two-pc-rollout.md) documents PC2's qualified Smart App Control-off direct install and PC1's fail-closed rejection of the unsigned supplemental policy. The bundle no longer installs that policy. PC1 remains on the proven canary until a publicly trusted signed build qualifies, without disabling Windows protections.
 
 ## Requirements
 
