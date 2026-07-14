@@ -35,7 +35,8 @@ public sealed class TextNormalizerTests
         var message = TextNormalizer.RenderCompletion("Test PC", normalized);
         var displayedTitle = message.Split('\n')[2]["스레드: ".Length..];
 
-        Assert.Equal(BridgeConstants.MaxTelegramTitleGraphemes + 1, System.Globalization.StringInfo.ParseCombiningCharacters(displayedTitle).Length);
+        Assert.Equal(string.Concat(Enumerable.Repeat(family, 12)) + "…", displayedTitle);
+        Assert.Equal(13, System.Globalization.StringInfo.ParseCombiningCharacters(displayedTitle).Length);
         Assert.EndsWith("…", displayedTitle, StringComparison.Ordinal);
         Assert.Equal(fullTitle, normalized);
     }

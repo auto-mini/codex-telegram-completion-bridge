@@ -2,7 +2,7 @@
 
 Windows sidecar that sends one completion-only Telegram message when a user-visible root Codex task finishes, while preserving an existing verified Computer Use notifier.
 
-The message contains a status line, the PC name or configured alias, and at most the first 32 Unicode grapheme clusters of the visible task title. It does not send the prompt, response, transcript, or task files.
+The message contains a status line, the PC name or configured alias, and at most the first 12 Unicode grapheme clusters of the visible task title. It does not send the prompt, response, transcript, or task files.
 
 > **Release status:** the first public release is an unsigned preview needed for public review and the SignPath Foundation application. Windows may block it. Do not disable Smart App Control, Microsoft Defender, or another security control to run an unsigned artifact. The proven local canary remains the operational build until a signed release passes the full qualification gate.
 

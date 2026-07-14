@@ -153,7 +153,9 @@
 - If PC2 has SAC evaluation/unknown state, an additional enforced non-system Base policy, a mismatched standard Base, or a failed policy/executable smoke check, rollout stops without bypassing Windows protection.
 - PC1 remains on canary.9 until PC2 proves this exact policy and package. SignPath remains a free backup and the required path for a generally distributed release.
 
-## PC2 handoff candidate (2026-07-14)
+## Superseded PC2 handoff candidate (2026-07-14, personal.1)
+
+This candidate is retained only as an audit record. It must not be deployed because the user subsequently reduced the Telegram title-display limit from 32 to 12 grapheme clusters; `personal.2` supersedes it.
 
 - Tooling commits: `c054e52` (fail-closed rollout), `9c07a56` (minimal secret-free payload), and `3d3b4be` (Windows PowerShell path compatibility).
 - Final payload version: `1.0.0-personal.1`; source package outer manifest SHA-256 `463da2e782377787caea6f552070631b4f5cf40e8899115ba62d8082a03fd342`.
@@ -216,4 +218,4 @@
 | Personal exact-hash title-shortening candidate | READY FOR PC2 PILOT — bundle built and statically verified; no policy applied to PC1 |
 | One additional PC | PENDING PC2 readiness, policy activation, four-executable smoke, install, Telegram, restart, lock-screen, and Android Remote checks |
 
-The restored canary.9 installation remains live on PC1 while PC2 pilots the exact-hash supplemental-policy route. Final two-PC completion requires the 32-grapheme title build to pass under unchanged Windows protection on PC2 and then the same reviewed policy/package to replace canary.9 on PC1.
+The restored canary.9 installation remains live on PC1 while PC2 pilots the exact-hash supplemental-policy route. Final two-PC completion requires the 12-grapheme title build to pass under unchanged Windows protection on PC2 and then the same reviewed policy/package to replace canary.9 on PC1.

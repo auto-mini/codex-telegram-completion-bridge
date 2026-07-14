@@ -8,7 +8,7 @@ After the user explicitly configures a Telegram bot and enables live delivery, t
 
 - a completion-only status line;
 - the configured PC alias (the Windows computer name by default); and
-- at most the first 32 Unicode grapheme clusters of the visible Codex task title.
+- at most the first 12 Unicode grapheme clusters of the visible Codex task title.
 
 Messages are sent directly to `https://api.telegram.org` using the bot and chat selected by the user. Telegram processes and stores those messages under its own [privacy policy](https://telegram.org/privacy). A task's full response, prompt body, files, and conversation transcript are not sent by this program.
 

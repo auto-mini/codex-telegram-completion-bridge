@@ -66,7 +66,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     [Fact]
     public async Task Long_live_title_is_full_in_encrypted_envelope_but_short_in_telegram()
     {
-        var fullTitle = string.Concat(Enumerable.Repeat("가", BridgeConstants.MaxTelegramTitleGraphemes + 5));
+        var fullTitle = new string('가', 17);
         var fixture = CreateFixture(CaptureMode.Live, new StateResolution(ResolutionKind.RootReady, fullTitle));
         fixture.SaveCredentials();
         var item = fixture.Enqueue();
@@ -75,7 +75,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
 
         var sent = Assert.Single(fixture.Telegram.SentTexts);
         var displayedTitle = sent.Split('\n')[2]["스레드: ".Length..];
-        Assert.Equal(new string('가', BridgeConstants.MaxTelegramTitleGraphemes) + "…", displayedTitle);
+        Assert.Equal(new string('가', 12) + "…", displayedTitle);
         var protectedEnvelope = fixture.Queue.GetEvent(item.EventId)!.DeliveryEnvelopeDpapi!;
         var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(protectedEnvelope, protector);
         Assert.Equal(fullTitle, envelope.ThreadTitle);
@@ -104,7 +104,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
         await fixture.Engine.ProcessOneAsync(CancellationToken.None);
 
         Assert.Equal(2, fixture.Telegram.SentTexts.Count);
-        Assert.All(fixture.Telegram.SentTexts, text => Assert.Equal("✅ Codex 응답 완료\nPC: Test PC\n스레드: Original title", text));
+        Assert.All(fixture.Telegram.SentTexts, text => Assert.Equal("✅ Codex 응답 완료\nPC: Test PC\n스레드: Original tit…", text));
         Assert.Equal(1, fixture.Resolver.CallCount);
         Assert.Equal(EventState.Sent, fixture.Queue.GetEvent(item.EventId)!.State);
     }
