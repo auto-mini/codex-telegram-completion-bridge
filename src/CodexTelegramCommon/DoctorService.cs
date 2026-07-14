@@ -193,7 +193,11 @@ public sealed class DoctorService(
         {
             var resolver = new CodexStateResolver(runtime.CodexHome);
             var resolution = resolver.Resolve(Guid.NewGuid().ToString("D"));
-            var compatible = resolver.HasAnyCompatibleDatabase() && resolution.Kind != ResolutionKind.Unsupported;
+            var titleIndexCompatible = resolver.HasCompatibleTitleIndex();
+            checks["codex_title_index"] = titleIndexCompatible ? "COMPATIBLE_OR_ABSENT" : "UNSUPPORTED_OR_BUSY";
+            var compatible = resolver.HasAnyCompatibleDatabase() &&
+                             titleIndexCompatible &&
+                             resolution.Kind != ResolutionKind.Unsupported;
             checks["codex_state_schema"] = compatible ? "COMPATIBLE" : "UNSUPPORTED_OR_MISSING";
             if (!compatible)
             {

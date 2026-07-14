@@ -60,7 +60,9 @@ public sealed class CaptureControl(
         }
 
         var resolver = new CodexStateResolver(current.CodexHome);
-        if (!resolver.HasAnyCompatibleDatabase() || resolver.Resolve(Guid.NewGuid().ToString("D")).Kind == ResolutionKind.Unsupported)
+        if (!resolver.HasAnyCompatibleDatabase() ||
+            !resolver.HasCompatibleTitleIndex() ||
+            resolver.Resolve(Guid.NewGuid().ToString("D")).Kind == ResolutionKind.Unsupported)
         {
             throw new InvalidOperationException(HealthCodes.StateSchemaBlocked);
         }

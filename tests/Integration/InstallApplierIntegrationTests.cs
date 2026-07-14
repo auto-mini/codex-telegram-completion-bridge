@@ -371,6 +371,7 @@ public sealed class InstallApplierIntegrationTests
 
         Assert.Equal("OK", report.Overall);
         Assert.Empty(report.Conditions);
+        Assert.Equal("COMPATIBLE_OR_ABSENT", report.Checks["codex_title_index"]);
         Assert.DoesNotContain("must-never-appear", json, StringComparison.Ordinal);
         Assert.DoesNotContain(fixture.VendorPath, json, StringComparison.OrdinalIgnoreCase);
     }
