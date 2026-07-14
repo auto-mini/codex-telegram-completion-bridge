@@ -2,7 +2,7 @@
 
 Windows sidecar that sends one completion-only Telegram message when a user-visible root Codex task finishes, while preserving an existing verified Computer Use notifier.
 
-The message contains a status line, the PC name or configured alias, and at most the first 32 Unicode grapheme clusters of the visible task title. It does not send the prompt, response, transcript, or task files.
+The message contains a status line, the PC name or configured alias, and at most the first 12 Unicode grapheme clusters of the visible task title. It does not send the prompt, response, transcript, or task files.
 
 > **Release status:** the first public release is an unsigned preview needed for public review and the SignPath Foundation application. Windows may block it. Do not disable Smart App Control, Microsoft Defender, or another security control to run an unsigned artifact. The proven local canary remains the operational build until a signed release passes the full qualification gate.
 
@@ -10,9 +10,9 @@ This is an independent project and is not affiliated with or endorsed by OpenAI,
 
 ## How it works
 
-The bridge installs as a per-user Codex `notify` hook. It validates a completion event, keeps the existing upstream notifier intact, writes a durable local queue, and lets a per-user scheduled worker deliver the Telegram message. Duplicate events are suppressed. Delivery retries are bounded and honor Telegram rate limits.
+The bridge installs as a per-user Codex `notify` hook. It validates a completion event, keeps the existing upstream notifier intact, writes a durable local queue, and lets a per-user scheduled worker deliver the Telegram message. Duplicate events are suppressed. Delivery retries are bounded and honor Telegram rate limits. For current Codex desktop tasks, the newest valid exact-thread `thread_name` in Codex's append-only `session_index.jsonl` takes precedence over the legacy state-database title so a rename survives an app or PC restart; the database title remains a fallback only when no indexed name exists.
 
-Installation begins in `shadow` mode with no Telegram network activity. The user verifies sampled PC names and visible title prefixes before entering a bot token and enabling live delivery.
+Installation begins in `shadow` mode with no Telegram network activity. The user verifies sampled PC names and visible titles before entering a bot token and enabling live delivery. A title shorter than 12 grapheme clusters is verified by entering the complete title; longer titles require a prefix of at least 12 grapheme clusters.
 
 Security boundaries include:
 
@@ -24,6 +24,8 @@ Security boundaries include:
 - no bundled native SQLite library: the Windows-serviced `winsqlite3.dll` is used.
 
 See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), the [validation status](docs/validation.md), and the [code signing policy](docs/code-signing-policy.md).
+
+For the project owner's two-PC deployment only, [the personal rollout record](docs/personal-two-pc-rollout.md) documents both machines' exact `personal.4` qualification in `SAC_OFF_DIRECT_TEST`. PC1 first rejected and removed the unsigned supplemental under active Smart App Control; after a separate risk review, the owner manually turned off only Smart App Control on that personal machine and qualified the same package. The bundle neither changes Smart App Control nor installs the supplemental policy. This owner-specific choice is not a public deployment recommendation; generally distributed builds still require the signed-release gate above.
 
 ## Requirements
 
@@ -70,13 +72,17 @@ $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
 & $ctl doctor --json
 & $ctl shadow list
 & $ctl shadow verify 1
+& $ctl quarantine list
+& $ctl quarantine acknowledge 1
 & $ctl telegram bootstrap
 & $ctl enable-live
 & $ctl pause
 & $ctl resume
 ```
 
-`shadow verify` asks, with no echo, for the exact PC name and at least the first 12 visible characters of the task title. A copied trailing ellipsis is ignored, so a sidebar-truncated title remains verifiable without displaying the full locally stored title.
+`shadow verify` asks, with no echo, for the exact PC name and either the complete task title when it is shorter than 12 grapheme clusters or a visible prefix of at least 12 grapheme clusters for a longer title. A copied trailing ellipsis is ignored, so a sidebar-truncated title remains verifiable without displaying the full locally stored title.
+
+`quarantine list` displays only sequence, timestamp, capture mode, fixed error code, and a shortened opaque event ID. `quarantine acknowledge <sequence>` requires interactive confirmation, converts exactly that reviewed row to `suppressed`, and clears `EVENT_QUARANTINED` only after no quarantined rows remain. It never sends or replays the event.
 
 After desktop startup, Computer Use may place its verified `turn-ended --previous-notify` wrapper around the bridge. This is supported; the bridge suppresses a second upstream launch so Computer Use is signaled only once.
 

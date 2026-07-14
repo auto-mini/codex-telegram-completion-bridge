@@ -7,7 +7,7 @@ public static class BridgeConstants
     public const int MaxOpaqueIdUtf16Length = 256;
     public const int MaxPcNameGraphemes = 64;
     public const int MaxTitleGraphemes = 160;
-    public const int MaxTelegramTitleGraphemes = 32;
+    public const int MaxTelegramTitleGraphemes = 12;
     public const int MinTitleVerificationPrefixGraphemes = 12;
     public const int MaxPcNameUtf16Length = 512;
     public const int MaxTitleUtf16Length = 3_400;
@@ -20,6 +20,7 @@ public static class BridgeConstants
     public const string VendorExecutableName = "codex-computer-use.exe";
     public const string VendorArgument = "turn-ended";
     public const string VendorPreviousNotifyArgument = "--previous-notify";
+    public const string QuarantineAcknowledgedCode = "QUARANTINE_ACKNOWLEDGED";
     public const int MaxPreviousNotifyUtf16Length = 32_768;
     public static readonly TimeSpan HookDatabaseBusyTimeout = TimeSpan.FromMilliseconds(100);
     public static readonly TimeSpan WorkerLeaseDuration = TimeSpan.FromMinutes(10);

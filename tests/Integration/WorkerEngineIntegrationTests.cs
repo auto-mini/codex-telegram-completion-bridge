@@ -39,6 +39,20 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Shadow_verification_accepts_only_the_full_title_when_title_is_short()
+    {
+        var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.RootReady, "test"));
+        fixture.Enqueue();
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+        var control = new CaptureControl(protector, _ => { }, () => { });
+
+        Assert.True(control.VerifyShadow(fixture.Layout, 1, "Test PC", "test"));
+        Assert.True(control.VerifyShadow(fixture.Layout, 1, "Test PC", "test…"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Test PC", "tes"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Wrong PC", "test"));
+    }
+
+    [Fact]
     public async Task Suppresses_subagent_without_telegram_credentials()
     {
         var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.Subagent));
@@ -66,7 +80,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     [Fact]
     public async Task Long_live_title_is_full_in_encrypted_envelope_but_short_in_telegram()
     {
-        var fullTitle = string.Concat(Enumerable.Repeat("가", BridgeConstants.MaxTelegramTitleGraphemes + 5));
+        var fullTitle = new string('가', 17);
         var fixture = CreateFixture(CaptureMode.Live, new StateResolution(ResolutionKind.RootReady, fullTitle));
         fixture.SaveCredentials();
         var item = fixture.Enqueue();
@@ -75,7 +89,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
 
         var sent = Assert.Single(fixture.Telegram.SentTexts);
         var displayedTitle = sent.Split('\n')[2]["스레드: ".Length..];
-        Assert.Equal(new string('가', BridgeConstants.MaxTelegramTitleGraphemes) + "…", displayedTitle);
+        Assert.Equal(new string('가', 12) + "…", displayedTitle);
         var protectedEnvelope = fixture.Queue.GetEvent(item.EventId)!.DeliveryEnvelopeDpapi!;
         var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(protectedEnvelope, protector);
         Assert.Equal(fullTitle, envelope.ThreadTitle);
@@ -104,7 +118,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
         await fixture.Engine.ProcessOneAsync(CancellationToken.None);
 
         Assert.Equal(2, fixture.Telegram.SentTexts.Count);
-        Assert.All(fixture.Telegram.SentTexts, text => Assert.Equal("✅ Codex 응답 완료\nPC: Test PC\n스레드: Original title", text));
+        Assert.All(fixture.Telegram.SentTexts, text => Assert.Equal("✅ Codex 응답 완료\nPC: Test PC\n스레드: Original tit…", text));
         Assert.Equal(1, fixture.Resolver.CallCount);
         Assert.Equal(EventState.Sent, fixture.Queue.GetEvent(item.EventId)!.State);
     }

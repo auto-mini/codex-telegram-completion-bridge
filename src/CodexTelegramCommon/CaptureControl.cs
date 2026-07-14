@@ -60,7 +60,9 @@ public sealed class CaptureControl(
         }
 
         var resolver = new CodexStateResolver(current.CodexHome);
-        if (!resolver.HasAnyCompatibleDatabase() || resolver.Resolve(Guid.NewGuid().ToString("D")).Kind == ResolutionKind.Unsupported)
+        if (!resolver.HasAnyCompatibleDatabase() ||
+            !resolver.HasCompatibleTitleIndex() ||
+            resolver.Resolve(Guid.NewGuid().ToString("D")).Kind == ResolutionKind.Unsupported)
         {
             throw new InvalidOperationException(HealthCodes.StateSchemaBlocked);
         }
@@ -103,6 +105,22 @@ public sealed class CaptureControl(
 
     public IReadOnlyList<ShadowRecord> ListShadow(InstallationLayout layout) => new QueueStore(layout.DatabasePath).ListShadow();
 
+    public IReadOnlyList<QuarantineRecord> ListQuarantine(InstallationLayout layout) => new QueueStore(layout.DatabasePath).ListQuarantine();
+
+    public void AcknowledgeQuarantine(InstallationLayout layout, string eventId)
+    {
+        using var mutationLock = AcquireMutationLock();
+        var queue = new QueueStore(layout.DatabasePath);
+        queue.ValidateExistingSchema();
+        var acl = WindowsAclManager.VerifyTree(layout.Root, (currentSid ?? (() => CurrentUserContext.Sid))());
+        if (!acl.IsValid)
+        {
+            throw new InvalidOperationException(HealthCodes.InstallAclBlocked);
+        }
+
+        queue.AcknowledgeQuarantine(eventId, (utcNow ?? (() => DateTimeOffset.UtcNow))());
+    }
+
     public bool VerifyShadow(InstallationLayout layout, long sequence, string expectedPc, string expectedTitlePrefix)
     {
         var protectedEnvelope = new QueueStore(layout.DatabasePath).GetShadowEnvelope(sequence)
@@ -111,10 +129,9 @@ public sealed class CaptureControl(
         {
             var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(protectedEnvelope, protector);
             var pc = TextNormalizer.NormalizePcName(expectedPc);
-            var titlePrefix = TextNormalizer.NormalizeTitleVerificationPrefix(expectedTitlePrefix);
-            return pc is not null && titlePrefix is not null &&
+            return pc is not null &&
                    string.Equals(pc, envelope.PcName, StringComparison.Ordinal) &&
-                   envelope.ThreadTitle.StartsWith(titlePrefix, StringComparison.Ordinal);
+                   TextNormalizer.MatchesTitleVerification(envelope.ThreadTitle, expectedTitlePrefix);
         }
         finally
         {

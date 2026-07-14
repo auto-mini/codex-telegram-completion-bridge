@@ -13,3 +13,9 @@
 The signing workflow must upload the unsigned package contents as a GitHub Actions artifact, submit that artifact through the official SignPath GitHub action, wait for manual approval, download the signed result, and generate the final manifest only after signing. The final release must verify all four project-maintained signatures and must not sign an upstream binary.
 
 The exact SignPath organization, project, artifact-configuration, and signing-policy slugs are not guessed or committed before the project is accepted. API tokens are stored only as GitHub environment secrets. The `signpath-release` GitHub environment must require manual approval.
+
+## Private two-PC handoff
+
+The owner-controlled PC2 handoff is not a GitHub release. Build the final package, retain canary.9 as rollback, then run `scripts/New-PersonalRolloutBundle.ps1` from a clean tracked worktree. The generator retains a ConfigCI exact-hash supplemental as a validated diagnostic artifact, but the runtime installer does not add it. The bundle rejects path, publisher, wildcard, signer, deny, and allow-all rules and produces a secret-free ZIP with nested and outer SHA-256 manifests.
+
+PC2 qualified exact `personal.4` in `SAC_OFF_DIRECT_TEST` without a supplemental. PC1's active inbox Smart App Control Base did not authorize the exact unsigned supplemental, so the diagnostic policy was removed and the candidate was not run under active SAC. After reviewing the security trade-off, the owner manually turned off only Smart App Control on that personal machine; the bundle did not change the setting. PC1 then qualified the same exact package in direct mode while Defender, all firewall profiles, VBS, and UAC remained enabled. This completes the owner-controlled two-PC deployment, but SignPath or another publicly trusted Authenticode path remains mandatory for generally distributed production releases.

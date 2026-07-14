@@ -8,7 +8,7 @@ After the user explicitly configures a Telegram bot and enables live delivery, t
 
 - a completion-only status line;
 - the configured PC alias (the Windows computer name by default); and
-- at most the first 32 Unicode grapheme clusters of the visible Codex task title.
+- at most the first 12 Unicode grapheme clusters of the visible Codex task title.
 
 Messages are sent directly to `https://api.telegram.org` using the bot and chat selected by the user. Telegram processes and stores those messages under its own [privacy policy](https://telegram.org/privacy). A task's full response, prompt body, files, and conversation transcript are not sent by this program.
 
@@ -17,6 +17,8 @@ During one-time setup, the program calls Telegram Bot API methods needed to vali
 ## Local data
 
 The bot token and selected chat information are encrypted with Windows DPAPI for the current user. Queue state, configuration backups, health state, and bounded operational logs are stored under `%LOCALAPPDATA%\CodexTelegramBridge`. Operational logs are designed not to contain bot tokens or task titles. The local encrypted event envelope may temporarily contain the normalized full title so the user can verify a shadow event before live delivery.
+
+To honor task renames after a restart, the worker reads a bounded, stable snapshot of Codex's local `session_index.jsonl` from newest to oldest and extracts only the latest valid `thread_name` for the completed thread ID. The input buffer is cleared after parsing; names for unrelated threads are not copied into bridge storage or logs. If no indexed name exists, the worker falls back to the compatible Codex state-database title. Codex's separate desktop `thread-descriptions-v1` metadata is not treated as a task title.
 
 Uninstalling preserves state by default so rollback remains possible. `scripts\uninstall.ps1 -PurgeState` removes retained mutable state after explicit confirmation.
 

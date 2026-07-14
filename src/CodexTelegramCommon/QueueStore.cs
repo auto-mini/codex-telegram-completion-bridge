@@ -395,6 +395,85 @@ public sealed class QueueStore(string databasePath)
         return result;
     }
 
+    public IReadOnlyList<QuarantineRecord> ListQuarantine()
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT event_id, observed_at_utc, ingest_mode, last_error_code
+            FROM events
+            WHERE state = 'quarantine'
+            ORDER BY observed_at_utc, event_id;
+            """;
+        using var reader = command.ExecuteReader();
+        var result = new List<QuarantineRecord>();
+        long sequence = 1;
+        while (reader.Read())
+        {
+            var eventId = reader.GetString(0);
+            var errorCode = reader.IsDBNull(3) ? null : reader.GetString(3);
+            if (eventId.Length != 64 || !eventId.All(Uri.IsHexDigit) || errorCode is null)
+            {
+                throw new InvalidDataException("Quarantined event failed integrity validation.");
+            }
+
+            try
+            {
+                ValidateCode(errorCode);
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                throw new InvalidDataException("Quarantined event failed integrity validation.", exception);
+            }
+
+            result.Add(new QuarantineRecord(
+                sequence++,
+                eventId,
+                Parse(reader.GetString(1)),
+                ParseCaptureMode(reader.GetString(2)),
+                errorCode));
+        }
+
+        return result;
+    }
+
+    public void AcknowledgeQuarantine(string eventId, DateTimeOffset completedUtc)
+    {
+        if (eventId.Length != 64 || !eventId.All(Uri.IsHexDigit))
+        {
+            throw new ArgumentOutOfRangeException(nameof(eventId));
+        }
+
+        using var connection = OpenConnection(readOnly: false, busyTimeoutMilliseconds: 5_000);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                UPDATE events
+                SET state = 'suppressed', lease_until_utc = NULL, completed_at_utc = $completed,
+                    last_error_code = $error, delivery_envelope_dpapi = NULL
+                WHERE event_id = $event_id AND state = 'quarantine';
+                """;
+            command.Parameters.AddWithValue("$event_id", eventId);
+            command.Parameters.AddWithValue("$completed", Format(completedUtc));
+            command.Parameters.AddWithValue("$error", BridgeConstants.QuarantineAcknowledgedCode);
+            EnsureOne(command.ExecuteNonQuery(), eventId);
+        }
+
+        using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "SELECT COUNT(*) FROM events WHERE state = 'quarantine';";
+            if ((long)command.ExecuteScalar()! == 0)
+            {
+                DeleteHealth(connection, transaction, HealthCodes.EventQuarantined);
+            }
+        }
+
+        transaction.Commit();
+    }
+
     public byte[]? GetShadowEnvelope(long sequence)
     {
         if (sequence < 1)

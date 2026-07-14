@@ -54,4 +54,12 @@ A SignPath-signed release may be published only after:
 4. the signed output passes automated signature, package-manifest, install-plan, install, task-launch, Telegram, restart, locked-session, and uninstall checks; and
 5. the release notes and download page link back to this policy.
 
-Until all gates pass, the newest verified local canary remains the operational build and public assets remain explicitly unsigned.
+Until all gates pass, public assets remain explicitly unsigned and are not represented as generally deployable production releases.
+
+## Owner-controlled two-PC result
+
+PC2 qualified the exact `personal.4` package in `SAC_OFF_DIRECT_TEST`, without installing a supplemental policy. PC1's active inbox Smart App Control Base first placed the exact unsigned supplemental on disk but reported it as unauthorized and unenforced. The diagnostic policy was removed completely, and no candidate executable was launched while Smart App Control remained active.
+
+After a separate risk review, the owner explicitly chose to turn off only Smart App Control on that personal PC through Windows Security. The bundle did not make that change. PC1 then qualified the same exact `personal.4` hashes through direct execution, transactional installation, scheduled-task, Telegram online, actual-delivery, and 12-grapheme display checks. Defender protections, all firewall profiles, VBS, and UAC remained enabled; no supplemental policy was installed.
+
+This owner-controlled two-machine exception does not alter the public signing policy. It is neither an accepted signing substitute nor a recommendation to disable Smart App Control for an unsigned public preview. A generally distributed release still requires a publicly trusted Authenticode signature and the full activation gate above.

@@ -61,7 +61,28 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
                     continue;
                 }
 
-                return Classify(row);
+                var sourceClassification = ClassifySource(row);
+                if (sourceClassification is not null)
+                {
+                    return sourceClassification;
+                }
+
+                var sessionIndex = CodexSessionIndexTitleReader.Read(CodexHome, threadId);
+                if (sessionIndex.Kind == SessionIndexTitleKind.Retry)
+                {
+                    return new StateResolution(ResolutionKind.NotReady, ErrorCode: sessionIndex.ErrorCode);
+                }
+
+                if (sessionIndex.Kind == SessionIndexTitleKind.Unsupported)
+                {
+                    return new StateResolution(ResolutionKind.Unsupported, ErrorCode: sessionIndex.ErrorCode);
+                }
+
+                var title = TextNormalizer.NormalizeTitle(
+                    sessionIndex.Kind == SessionIndexTitleKind.Present ? sessionIndex.Title : row.Title);
+                return title is null
+                    ? new StateResolution(ResolutionKind.NotReady, ErrorCode: "THREAD_TITLE_NOT_READY")
+                    : new StateResolution(ResolutionKind.RootReady, title);
             }
             catch (SqliteException exception) when (exception.SqliteErrorCode is 5 or 6)
             {
@@ -105,6 +126,17 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
         {
             return false;
         }
+    }
+
+    public bool HasCompatibleTitleIndex()
+    {
+        if (!Directory.Exists(CodexHome))
+        {
+            return false;
+        }
+
+        var result = CodexSessionIndexTitleReader.Read(CodexHome, Guid.Empty.ToString("D"));
+        return result.Kind is SessionIndexTitleKind.Absent or SessionIndexTitleKind.Present;
     }
 
     internal IReadOnlyList<StateDatabaseCandidate> EnumerateCandidates()
@@ -177,7 +209,7 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
             reader.IsDBNull(2) ? null : reader.GetString(2));
     }
 
-    private static StateResolution Classify(ThreadRow row)
+    private static StateResolution? ClassifySource(ThreadRow row)
     {
         var structuredSource = ParseStructuredSource(row.Source);
         if (structuredSource.Malformed)
@@ -197,10 +229,7 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
             return new StateResolution(ResolutionKind.Unsupported, ErrorCode: "THREAD_SOURCE_UNSUPPORTED");
         }
 
-        var title = TextNormalizer.NormalizeTitle(row.Title);
-        return title is null
-            ? new StateResolution(ResolutionKind.NotReady, ErrorCode: "THREAD_TITLE_NOT_READY")
-            : new StateResolution(ResolutionKind.RootReady, title);
+        return null;
     }
 
     private static StructuredSourceResult ParseStructuredSource(string? source)
