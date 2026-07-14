@@ -153,6 +153,22 @@
 - If PC2 has SAC evaluation/unknown state, an additional enforced non-system Base policy, a mismatched standard Base, or a failed policy/executable smoke check, rollout stops without bypassing Windows protection.
 - PC1 remains on canary.9 until PC2 proves this exact policy and package. SignPath remains a free backup and the required path for a generally distributed release.
 
+## PC2 handoff candidate (2026-07-14)
+
+- Tooling commits: `c054e52` (fail-closed rollout), `9c07a56` (minimal secret-free payload), and `3d3b4be` (Windows PowerShell path compatibility).
+- Final payload version: `1.0.0-personal.1`; source package outer manifest SHA-256 `463da2e782377787caea6f552070631b4f5cf40e8899115ba62d8082a03fd342`.
+- Final Bridge SHA-256: `3333457642b4bd99760a8434209718f04111cba46bf31edab52434d593015263`.
+- Final Ctl SHA-256: `82d52f2b49f3acc48737fd412b7c8ed7643cb59175b6ce017edd1d70e274ea4b`.
+- Rollback source is exact canary.9: outer manifest SHA-256 `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`, Bridge `0094ed449680a2bfc0e3839f8c3f6b578f26a12c0b315d226ce84a8b7dd1d909`, Ctl `323a3949e9f1abbe647b2bfab933e8d591a40ed6a1a347402ac73381f4c5f17d`.
+- Handoff ZIP: `artifacts/handoff/CodexTelegramBridge-PC2-Handoff-1.0.0-personal.1.zip`; SHA-256 `c250447454776927ed3e69d6a60182638821141ad05fe0dc76c2bec2cdb65b5b`.
+- Bundle manifest outer SHA-256: `153dec3aca482d82145a250c50a5cf97e46f5743892f6fc5afc306d52109e8b2`.
+- Supplemental policy ID: `{46FF2EF5-65AD-463D-8E75-7F6677352DEF}`; standard SAC Base ID `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`; XML SHA-256 `a95e015aaf53f9df289971605b932e1ab959a165ae3099d71c37d2cbb73071ab`; CIP SHA-256 `4d34e3bab51687cef34c99d54fa54372e56bab401794c823c220510e8be7e767`.
+- Policy structure validation passed: Supplemental Policy, version `1.0.0.1`, only `Enabled:Unsigned System Integrity Policy`, exactly 16 Authenticode/page-hash allow rules for four project executables, zero signer/deny/path/publisher/file-name rules, empty kernel references, and all 16 rules referenced by the user-mode scenario.
+- The first generated ZIP was rejected and deleted because the old canary.9 package contained a historical blueprint with the PC1 computer name. The accepted ZIP contains only four EXEs, two minimal package manifests, seven rollout scripts, two generic documents, rollout metadata, XML/CIP policy, and its two bundle manifests. It contains no old canary document.
+- Validation passed: PowerShell parse and static forbidden-mutation checks, clean NuGet vulnerability audit, formatting check, Windows Code Integrity XSD validation, mock SAC readiness/extra-Base rejection, ZIP round-trip verification, exact 18-file manifest verification, deliberate tamper rejection, Windows PowerShell 5 default-path execution, no-`-Apply` install/remove guards, personal-text scan, and Gitleaks with no detected secret.
+- A fresh Release restore/build completed with zero warnings and zero errors. Fresh test execution on PC1 was not possible because SAC blocked the newly rebuilt test DLL hash (`0x800711C7`); the prior 81 unit + 85 integration result remains historical evidence, and hosted CI must re-run the exact source before PC2 install.
+- No supplemental policy or final executable was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
+
 ## Canary package
 
 - Latest built candidate: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
@@ -197,7 +213,7 @@
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
 | Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; retained as the public-distribution path |
-| Personal exact-hash title-shortening candidate | IN PREPARATION — PC2-first handoff and supplemental-policy verification required; PC1 unchanged |
+| Personal exact-hash title-shortening candidate | READY FOR PC2 PILOT — bundle built and statically verified; no policy applied to PC1 |
 | One additional PC | PENDING PC2 readiness, policy activation, four-executable smoke, install, Telegram, restart, lock-screen, and Android Remote checks |
 
 The restored canary.9 installation remains live on PC1 while PC2 pilots the exact-hash supplemental-policy route. Final two-PC completion requires the 32-grapheme title build to pass under unchanged Windows protection on PC2 and then the same reviewed policy/package to replace canary.9 on PC1.
