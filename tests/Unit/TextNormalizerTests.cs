@@ -70,17 +70,23 @@ public sealed class TextNormalizerTests
     [InlineData("Mobile GPT notification title…", "Mobile GPT notification title")]
     [InlineData("Mobile GPT notification title...", "Mobile GPT notification title")]
     [InlineData("  Mobile\tGPT notification title  ", "Mobile GPT notification title")]
-    public void Normalizes_visible_verification_prefix_and_removes_ui_ellipsis(string input, string expected)
+    public void Matches_visible_verification_prefix_and_removes_ui_ellipsis(string input, string expected)
     {
-        Assert.Equal(expected, TextNormalizer.NormalizeTitleVerificationPrefix(input));
+        Assert.True(TextNormalizer.MatchesTitleVerification(expected + " suffix long enough", input));
     }
 
     [Theory]
-    [InlineData("short")]
-    [InlineData("……")]
-    [InlineData("...")]
-    public void Rejects_verification_prefix_below_minimum_length(string input)
+    [InlineData("test", "test", true)]
+    [InlineData("test", "test…", true)]
+    [InlineData("test", "tes", false)]
+    [InlineData("abcdefghijkl", "abcdefghijkl", true)]
+    [InlineData("abcdefghijkl", "abcdefghijkl…", true)]
+    [InlineData("abcdefghijkl", "abcdefghijk", false)]
+    [InlineData("short title that is long", "short", false)]
+    [InlineData("...", "...", true)]
+    [InlineData("test", "...", false)]
+    public void Short_title_requires_full_match_and_long_title_requires_minimum_prefix(string title, string input, bool expected)
     {
-        Assert.Null(TextNormalizer.NormalizeTitleVerificationPrefix(input));
+        Assert.Equal(expected, TextNormalizer.MatchesTitleVerification(title, input));
     }
 }

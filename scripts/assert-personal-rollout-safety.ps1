@@ -31,13 +31,15 @@ foreach ($pattern in $forbidden) {
 $common = Get-Content -LiteralPath (Join-Path $runtimeRoot "PersonalRollout.Common.ps1") -Raw
 $install = Get-Content -LiteralPath (Join-Path $runtimeRoot "Install-PersonalSupplementalPolicy.ps1") -Raw
 $remove = Get-Content -LiteralPath (Join-Path $runtimeRoot "Remove-PersonalSupplementalPolicy.ps1") -Raw
+$candidateExecution = Get-Content -LiteralPath (Join-Path $runtimeRoot "Test-PersonalCandidateExecution.ps1") -Raw
 if ($common -notmatch '0283AC0F-FFF1-49AE-ADA1-8A933130CAD6' -or
     ([regex]::Matches($install, '--update-policy')).Count -ne 1 -or
     ([regex]::Matches($install, '--remove-policy')).Count -ne 1 -or
     ([regex]::Matches($remove, '--remove-policy')).Count -ne 1 -or
     $remove -notmatch 'BASE_POLICY_REMOVAL_REFUSED' -or
-    $remove -notmatch 'PROJECT_POLICY_REMOVAL_IDENTITY_MISMATCH') {
-    throw "Personal-rollout policy mutation guards are incomplete."
+    $remove -notmatch 'PROJECT_POLICY_REMOVAL_IDENTITY_MISMATCH' -or
+    $candidateExecution -notmatch '\[Parameter\(Mandatory = \$true\)\]\[AllowEmptyString\(\)\]\[string\]\$Arguments') {
+    throw "Personal-rollout safety guards are incomplete."
 }
 
 Write-Output "personal_rollout_safety=pass"

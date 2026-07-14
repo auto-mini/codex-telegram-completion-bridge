@@ -7,26 +7,42 @@ public static class TextNormalizer
 {
     public static string? NormalizeTitle(string? value) => Normalize(value, BridgeConstants.MaxTitleGraphemes, BridgeConstants.MaxTitleUtf16Length);
 
-    public static string? NormalizeTitleVerificationPrefix(string? value)
+    public static bool MatchesTitleVerification(string threadTitle, string? value)
     {
         var normalized = NormalizeTitle(value);
         if (normalized is null)
         {
-            return null;
+            return false;
         }
 
-        if (normalized.EndsWith('…'))
+        if (string.Equals(threadTitle, normalized, StringComparison.Ordinal))
         {
-            normalized = normalized[..^1].TrimEnd();
-        }
-        else if (normalized.EndsWith("...", StringComparison.Ordinal))
-        {
-            normalized = normalized[..^3].TrimEnd();
+            return true;
         }
 
-        return StringInfo.ParseCombiningCharacters(normalized).Length >= BridgeConstants.MinTitleVerificationPrefixGraphemes
-            ? normalized
-            : null;
+        var prefix = normalized;
+        if (prefix.EndsWith('…'))
+        {
+            prefix = prefix[..^1].TrimEnd();
+        }
+        else if (prefix.EndsWith("...", StringComparison.Ordinal))
+        {
+            prefix = prefix[..^3].TrimEnd();
+        }
+
+        if (prefix.Length == 0)
+        {
+            return false;
+        }
+
+        var titleLength = StringInfo.ParseCombiningCharacters(threadTitle).Length;
+        if (titleLength < BridgeConstants.MinTitleVerificationPrefixGraphemes)
+        {
+            return string.Equals(threadTitle, prefix, StringComparison.Ordinal);
+        }
+
+        return StringInfo.ParseCombiningCharacters(prefix).Length >= BridgeConstants.MinTitleVerificationPrefixGraphemes &&
+               threadTitle.StartsWith(prefix, StringComparison.Ordinal);
     }
 
     public static string? NormalizePcName(string? value) => Normalize(value, BridgeConstants.MaxPcNameGraphemes, BridgeConstants.MaxPcNameUtf16Length);

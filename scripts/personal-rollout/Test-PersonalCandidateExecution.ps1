@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($BundleRoot)) {
 function Invoke-ExpectedProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$Arguments,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Arguments,
         [Parameter(Mandatory = $true)][int]$ExpectedExitCode,
         [Parameter(Mandatory = $true)][string]$Label
     )
