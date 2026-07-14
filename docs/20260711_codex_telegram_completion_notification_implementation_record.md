@@ -79,6 +79,13 @@
   - app-update compatibility passed: Codex notify remained `BRIDGE_ACTIVE_WRAPPED`, the captured vendor remained `VENDOR_OK`, and Telegram, scheduled tasks, installation ACL, package manifest, runtime configuration, emergency spool, and local state checks all passed
   - the online doctor reported 30 sent, zero inflight, four quarantine, and three pending rows; the four earliest non-current shadow observations reached the designed 24-hour resolver timeout and raised non-blocking `EVENT_QUARANTINED`
   - the blueprint requires explicit reviewed acknowledgement and suppression before qualification, but the corresponding control command was missing from the implementation; therefore this gate is not recorded as fully passed even though requested delivery succeeded
+- Post-rollback 48-hour delivery observation: PASS at approximately +51 hours; formal qualification: DEGRADED
+  - at 2026-07-14 11:43 KST, after another PC reboot, the user confirmed normal Telegram delivery from Android Remote while Windows was locked
+  - the recorded last successful send was `2026-07-14T02:43:01.8924413Z`, matching the reported test; the queue contained 36 sent, zero inflight, seven quarantine, and four pending rows
+  - the first online doctor also found that the Codex app update had removed the previously captured Computer Use executable path, raising `UPSTREAM_BLOCKED`; the active verified `turn-ended --previous-notify` wrapper already referenced the current replacement executable and Telegram delivery was unaffected
+  - the current active Computer Use executable was re-adopted through the existing controlled launch-contract path, updating only the DPAPI-protected upstream record; the follow-up doctor reported `VENDOR_OK` and cleared `UPSTREAM_BLOCKED`
+  - after recovery, Codex notify remained `BRIDGE_ACTIVE_WRAPPED`, and Telegram, scheduled tasks, installation ACL, package manifest, runtime configuration, emergency spool, Codex state compatibility, and local state checks all passed
+  - formal status remains `DEGRADED` only because seven non-current shadow observations are quarantined; the signed recovery build is still required for explicit reviewed acknowledgement and suppression
 - Quarantine acknowledgement recovery: implemented and verified for the next signed candidate
   - `quarantine list` exposes only sequence, timestamp, capture mode, fixed reason code, and a 12-character opaque event prefix
   - `quarantine acknowledge <sequence>` displays the reviewed row, requires interactive confirmation, atomically converts only that exact quarantined event to `suppressed`, never sends or replays it, and clears `EVENT_QUARANTINED` only after no quarantined rows remain
@@ -186,7 +193,7 @@
 | Android Remote canary | IN PROGRESS — Remote and locked-session paths passed; volume gate remains |
 | 12-hour post-rollback observation | PASS — rebooted Windows task delivered at approximately +14 hours; online doctor `OK` |
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
-| 48-hour soak | PENDING |
+| 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
 | Signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration and signed-candidate qualification on the current PC |
 | One additional PC | PENDING until the identical signed title-shortening package passes the current-PC gate |
 
