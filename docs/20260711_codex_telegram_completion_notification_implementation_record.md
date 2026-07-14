@@ -171,6 +171,21 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - A fresh Release restore/build completed with zero warnings and zero errors. Fresh test execution on PC1 was not possible because SAC blocked the newly rebuilt test DLL hash (`0x800711C7`); the prior 81 unit + 85 integration result remains historical evidence, and hosted CI must re-run the exact source before PC2 install.
 - No supplemental policy or final executable was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
 
+## Current PC2 handoff candidate (2026-07-14, personal.2)
+
+- Source commit: `4ed0e8d` — Telegram-visible titles are now limited to the first 12 Unicode grapheme clusters plus one ellipsis when truncated; the full normalized title remains only in the encrypted local envelope.
+- Final payload version: `1.0.0-personal.2`; source package outer manifest SHA-256 `5b3b74c1db3a14b57a280782650dc4a61edae5458376ed34579b113e67a820df`.
+- Final Bridge SHA-256: `5e600575aefdbf5ffc55a6217f57832419d1a08ccdf09ea683890b01d1147a00`.
+- Final Ctl SHA-256: `5b40a7d00dacd3c4e6aa52eeb62248df05c031add69171f09ebeb66472c99590`.
+- Rollback source remains exact canary.9: outer manifest SHA-256 `31e01273703a9800f08da75a7c352cf914711ea72f7b236e1a0e337065a17c15`, Bridge `0094ed449680a2bfc0e3839f8c3f6b578f26a12c0b315d226ce84a8b7dd1d909`, Ctl `323a3949e9f1abbe647b2bfab933e8d591a40ed6a1a347402ac73381f4c5f17d`.
+- Handoff ZIP: `artifacts/handoff/CodexTelegramBridge-PC2-Handoff-1.0.0-personal.2.zip`; SHA-256 `23ed13e3f5466f807f5665098260de71d467eaba324e8c83ddba474ef8671a99`.
+- Bundle manifest outer SHA-256: `7922ee7a3d5ffcb1e76b3caff96e5dc03b0d5d857c8e991291f2b1fa929c447a`.
+- Supplemental policy ID: `{E71B8F2E-1D29-4593-94A6-692C502E660A}`; standard SAC Base ID `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`; XML SHA-256 `eb5cfa5ff945b91341c5da7a871718efcbe366504f359ab703a0191190aa3c19`; CIP SHA-256 `07300b809d22d2889b90f2db648e6520434ff39a55be81ca941ebaf5c8f3bb8c`.
+- Policy structure validation passed: Supplemental Policy, version `1.0.0.2`, only `Enabled:Unsigned System Integrity Policy`, exactly 16 Authenticode/page-hash allow rules for four project executables, zero signer/deny/path/publisher/file-name rules, empty kernel references, and all 16 rules referenced by the user-mode scenario.
+- Validation passed: locked restore, zero-warning/zero-error Release build, 81 unit tests, 85 integration tests, clean NuGet vulnerability audit, formatting verification, PowerShell syntax/safety checks, deterministic two-build package manifest, Code Integrity XSD validation, ZIP round-trip verification, exact 18-entry manifest verification, deliberate tamper rejection, Windows PowerShell 5 integrity/default-path execution, no-`-Apply` install/remove guards, personal-text scan, and Gitleaks with no detected secret.
+- The superseded `personal.1` handoff directory, ZIP, and ZIP-hash sidecar were deleted to prevent accidental deployment. Its source release package and hashes remain as local audit evidence.
+- No supplemental policy or `personal.2` executable was applied or launched on PC1. PC1 remains on the verified canary.9 installation.
+
 ## Canary package
 
 - Latest built candidate: `CodexTelegramBridge-1.0.0-canary.11-win-x64`
