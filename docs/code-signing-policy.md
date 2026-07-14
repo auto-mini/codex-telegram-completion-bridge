@@ -54,4 +54,8 @@ A SignPath-signed release may be published only after:
 4. the signed output passes automated signature, package-manifest, install-plan, install, task-launch, Telegram, restart, locked-session, and uninstall checks; and
 5. the release notes and download page link back to this policy.
 
-Until all gates pass, the newest verified local canary remains the operational build and public assets remain explicitly unsigned.
+Until all gates pass, public assets remain explicitly unsigned and are not represented as generally deployable production releases.
+
+## Owner-controlled two-PC exception
+
+Public Authenticode trust is not required for the separately documented two-PC personal pilot. That path is limited to two machines owned by the same user and uses an exact-hash unsigned supplemental App Control policy under the standard Smart App Control Base. It does not disable or replace Smart App Control, Defender, Secure Boot, VBS, or another Base policy, and it is not published as a broadly compatible release mechanism. The public signing gates above remain unchanged.

@@ -25,6 +25,8 @@ Security boundaries include:
 
 See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), the [validation status](docs/validation.md), and the [code signing policy](docs/code-signing-policy.md).
 
+For the project owner's two-PC private pilot only, [the personal rollout design](docs/personal-two-pc-rollout.md) describes a fail-closed exact-hash supplemental Smart App Control policy. It is not a general unsigned-install recommendation and never disables Windows protections.
+
 ## Requirements
 
 - Windows 10 or Windows 11, x64
