@@ -235,7 +235,7 @@ internal static class Program
 
         var expectedPc = ReadNoEcho("Expected PC name: ");
         Console.WriteLine();
-        var expectedTitle = ReadNoEcho($"Visible task title prefix ({BridgeConstants.MinTitleVerificationPrefixGraphemes}+ characters; trailing ellipsis is optional): ");
+        var expectedTitle = ReadNoEcho($"Visible task title (full title if shorter than {BridgeConstants.MinTitleVerificationPrefixGraphemes} graphemes; otherwise a {BridgeConstants.MinTitleVerificationPrefixGraphemes}+ grapheme prefix; trailing ellipsis is optional): ");
         Console.WriteLine();
         var layout = InstallationLayout.DefaultForCurrentUser();
         Console.WriteLine(Control(layout).VerifyShadow(layout, sequence, expectedPc, expectedTitle) ? "MATCH" : "MISMATCH");

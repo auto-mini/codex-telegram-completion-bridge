@@ -39,6 +39,20 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Shadow_verification_accepts_only_the_full_title_when_title_is_short()
+    {
+        var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.RootReady, "test"));
+        fixture.Enqueue();
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+        var control = new CaptureControl(protector, _ => { }, () => { });
+
+        Assert.True(control.VerifyShadow(fixture.Layout, 1, "Test PC", "test"));
+        Assert.True(control.VerifyShadow(fixture.Layout, 1, "Test PC", "test…"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Test PC", "tes"));
+        Assert.False(control.VerifyShadow(fixture.Layout, 1, "Wrong PC", "test"));
+    }
+
+    [Fact]
     public async Task Suppresses_subagent_without_telegram_credentials()
     {
         var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.Subagent));

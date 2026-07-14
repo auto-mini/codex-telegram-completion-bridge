@@ -1,5 +1,6 @@
 using CodexTelegramCommon;
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
 
 namespace CodexTelegramIntegrationTests;
 
@@ -89,6 +90,74 @@ public sealed class CodexStateResolverIntegrationTests : IDisposable
         Assert.Equal("WAL title", result.NormalizedTitle);
     }
 
+    [Fact]
+    public void Persisted_app_title_overrides_stale_database_after_resolver_restart()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        CreateDatabase(5, compatible: true, (id, "test", "{}", "user"));
+        WriteAppMetadata((id, "Codex Telegram Bridge PC2 설정 검증"));
+
+        var beforeRestart = new CodexStateResolver(root).Resolve(id);
+        var afterRestart = new CodexStateResolver(root).Resolve(id);
+
+        Assert.Equal(ResolutionKind.RootReady, beforeRestart.Kind);
+        Assert.Equal("Codex Telegram Bridge PC2 설정 검증", beforeRestart.NormalizedTitle);
+        Assert.Equal(beforeRestart, afterRestart);
+    }
+
+    [Fact]
+    public void Missing_app_title_for_thread_falls_back_to_database_title()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        CreateDatabase(5, compatible: true, (id, "Database title", "{}", "user"));
+        WriteAppMetadata((Guid.NewGuid().ToString("D"), "Different thread"));
+
+        var result = new CodexStateResolver(root).Resolve(id);
+
+        Assert.Equal(ResolutionKind.RootReady, result.Kind);
+        Assert.Equal("Database title", result.NormalizedTitle);
+    }
+
+    [Fact]
+    public void Blank_persisted_app_title_does_not_fall_back_to_stale_database_title()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        CreateDatabase(5, compatible: true, (id, "Stale title", "{}", "user"));
+        WriteAppMetadata((id, "\r\n"));
+
+        var result = new CodexStateResolver(root).Resolve(id);
+
+        Assert.Equal(ResolutionKind.NotReady, result.Kind);
+        Assert.Equal("THREAD_TITLE_NOT_READY", result.ErrorCode);
+    }
+
+    [Fact]
+    public void Malformed_app_metadata_retries_instead_of_using_stale_database_title()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        CreateDatabase(5, compatible: true, (id, "Stale title", "{}", "user"));
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, ".codex-global-state.json"), "{\"electron-persisted-atom-state\":");
+
+        var result = new CodexStateResolver(root).Resolve(id);
+
+        Assert.Equal(ResolutionKind.NotReady, result.Kind);
+        Assert.Equal("APP_METADATA_RETRY", result.ErrorCode);
+    }
+
+    [Fact]
+    public void Temporarily_missing_app_metadata_with_backup_retries_instead_of_using_stale_database_title()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        CreateDatabase(5, compatible: true, (id, "Stale title", "{}", "user"));
+        File.WriteAllText(Path.Combine(root, ".codex-global-state.json.bak"), "{}");
+
+        var result = new CodexStateResolver(root).Resolve(id);
+
+        Assert.Equal(ResolutionKind.NotReady, result.Kind);
+        Assert.Equal("APP_METADATA_RETRY", result.ErrorCode);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();
@@ -144,5 +213,23 @@ public sealed class CodexStateResolverIntegrationTests : IDisposable
         command.Parameters.AddWithValue("$source", (object?)source ?? DBNull.Value);
         command.Parameters.AddWithValue("$thread_source", (object?)threadSource ?? DBNull.Value);
         command.ExecuteNonQuery();
+    }
+
+    private void WriteAppMetadata(params (string Id, string Title)[] descriptions)
+    {
+        Directory.CreateDirectory(root);
+        var values = descriptions.ToDictionary(item => item.Id, item => item.Title, StringComparer.Ordinal);
+        var state = new Dictionary<string, object?>
+        {
+            ["unrelated"] = new { nested = new[] { 1, 2, 3 } },
+            ["electron-persisted-atom-state"] = new Dictionary<string, object?>
+            {
+                ["unrelated-atom"] = true,
+                ["thread-descriptions-v1"] = values,
+            },
+        };
+        File.WriteAllText(
+            Path.Combine(root, ".codex-global-state.json"),
+            JsonSerializer.Serialize(state));
     }
 }

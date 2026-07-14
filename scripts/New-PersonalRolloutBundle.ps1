@@ -2,7 +2,7 @@
 param(
     [string]$FinalPackage,
     [string]$RollbackPackage,
-    [string]$BundleVersion = "1.0.0-personal.2",
+    [string]$BundleVersion = "1.0.0-personal.3",
     [string]$OutputRoot
 )
 
@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 if ([string]::IsNullOrWhiteSpace($FinalPackage)) {
-    $FinalPackage = Join-Path $repo "artifacts\release\CodexTelegramBridge-1.0.0-personal.2-win-x64"
+    $FinalPackage = Join-Path $repo "artifacts\release\CodexTelegramBridge-1.0.0-personal.3-win-x64"
 }
 if ([string]::IsNullOrWhiteSpace($RollbackPackage)) {
     $RollbackPackage = Join-Path $repo "artifacts\release\CodexTelegramBridge-1.0.0-canary.9-win-x64"
@@ -259,11 +259,11 @@ try {
     $policyName = "CodexTelegramBridge-Personal-Allow"
     $policyXml = Join-Path $policyDirectory "$policyName.xml"
     New-CIPolicy -FilePath $policyXml -Level Hash -Fallback Hash -ScanPath $scanRoot -UserPEs -MultiplePolicyFormat -NoScript -NoShadowCopy | Out-Null
-    Set-CIPolicyIdInfo -FilePath $policyXml -PolicyName $policyName -PolicyId "CodexTelegramBridge-Personal-Allow-v2" -SupplementsBasePolicyID ([guid]$script:SacEnforcementBasePolicyId) | Out-Null
+    Set-CIPolicyIdInfo -FilePath $policyXml -PolicyName $policyName -PolicyId "CodexTelegramBridge-Personal-Allow-v3" -SupplementsBasePolicyID ([guid]$script:SacEnforcementBasePolicyId) | Out-Null
     foreach ($option in @(0, 3, 9, 11, 12)) {
         Set-RuleOption -FilePath $policyXml -Option $option -Delete
     }
-    Set-CIPolicyVersion -FilePath $policyXml -Version "1.0.0.2" | Out-Null
+    Set-CIPolicyVersion -FilePath $policyXml -Version "1.0.0.3" | Out-Null
 
     [xml]$policyDocument = Get-Content -LiteralPath $policyXml -Raw
     $namespace = New-Object Xml.XmlNamespaceManager($policyDocument.NameTable)
@@ -328,7 +328,7 @@ try {
             policyId = $policyId
             basePolicyId = $script:SacEnforcementBasePolicyId
             friendlyName = $policyName
-            version = "1.0.0.2"
+            version = "1.0.0.3"
             xmlRelativePath = "policy/$policyName.xml"
             cipRelativePath = "policy/{$policyId}.cip"
         }

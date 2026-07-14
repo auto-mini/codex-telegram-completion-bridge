@@ -127,10 +127,9 @@ public sealed class CaptureControl(
         {
             var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(protectedEnvelope, protector);
             var pc = TextNormalizer.NormalizePcName(expectedPc);
-            var titlePrefix = TextNormalizer.NormalizeTitleVerificationPrefix(expectedTitlePrefix);
-            return pc is not null && titlePrefix is not null &&
+            return pc is not null &&
                    string.Equals(pc, envelope.PcName, StringComparison.Ordinal) &&
-                   envelope.ThreadTitle.StartsWith(titlePrefix, StringComparison.Ordinal);
+                   TextNormalizer.MatchesTitleVerification(envelope.ThreadTitle, expectedTitlePrefix);
         }
         finally
         {

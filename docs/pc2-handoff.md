@@ -44,7 +44,7 @@
    & "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe" telegram bootstrap
    ```
 
-7. Shadow 확인, live 전환, 실제 완료 알림, 재부팅과 잠금 화면 검증을 이 PC에서 독립적으로 수행한다. 문제가 생기면 `doctor --online` 결과와 `rollout.json`의 정책 ID만 첫 번째 PC 작업에 전달하고 토큰·DPAPI·DB·로그 원문은 전달하지 않는다.
+7. Shadow 확인, live 전환, 실제 완료 알림, 재부팅과 잠금 화면 검증을 이 PC에서 독립적으로 수행한다. Shadow 제목이 12자소 미만이면 전체 제목을 입력하고, 12자소 이상이면 앞 12자소 이상의 prefix를 입력한다. 문제가 생기면 `doctor --online` 결과와 `rollout.json`의 정책 ID만 첫 번째 PC 작업에 전달하고 토큰·DPAPI·DB·로그 원문은 전달하지 않는다.
 
 ## 강제 중지 조건
 

@@ -18,6 +18,8 @@ During one-time setup, the program calls Telegram Bot API methods needed to vali
 
 The bot token and selected chat information are encrypted with Windows DPAPI for the current user. Queue state, configuration backups, health state, and bounded operational logs are stored under `%LOCALAPPDATA%\CodexTelegramBridge`. Operational logs are designed not to contain bot tokens or task titles. The local encrypted event envelope may temporarily contain the normalized full title so the user can verify a shadow event before live delivery.
 
+To honor task renames after a restart, the worker reads a bounded local snapshot of Codex app state and extracts only the title entry for the completed thread. The input buffer is cleared after parsing; unrelated app-state values are not copied into bridge storage or logs. If no app title exists, the worker falls back to the compatible Codex state-database title.
+
 Uninstalling preserves state by default so rollback remains possible. `scripts\uninstall.ps1 -PurgeState` removes retained mutable state after explicit confirmation.
 
 ## Network boundary

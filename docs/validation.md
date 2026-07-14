@@ -16,7 +16,7 @@ The pre-public canary has demonstrated:
 
 An attempted new unsigned executable hash was blocked by Smart App Control and was rolled back transactionally to the previously exercised canary. Smart App Control and Microsoft Defender were not disabled and no exclusion was created. This incident is why unsigned public previews are not treated as generally deployable production releases.
 
-The current public source includes the shorter 12-grapheme Telegram title display, but that refinement has only automated-test coverage until a qualified candidate can be deployed.
+The current public source includes the shorter 12-grapheme Telegram title display. PC2 confirmed that display, restart recovery, locked-session delivery, and Android Remote delivery with `personal.2`, but also exposed three pre-promotion defects: a renamed title could fall back to the stale legacy database value after restart, short titles could not pass shadow verification, and the candidate smoke script rejected an empty Bridge argument during parameter binding. The current source fixes all three and remains pending exact-candidate PC2 requalification.
 
 ## Public source and package checks
 
