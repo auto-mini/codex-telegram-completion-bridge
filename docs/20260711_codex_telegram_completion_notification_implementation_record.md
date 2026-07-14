@@ -227,7 +227,18 @@ This candidate is retained only as an audit record. It must not be deployed beca
 - After this static qualification, the superseded `personal.3` handoff directory, ZIP, and ZIP-hash sidecar were deleted to prevent accidental redistribution; its source package and recorded hashes remain as audit evidence.
 - PC2 upgraded to exact version `1.0.0-personal.4` from source commit `441c289a891edace86cbf67f626c23f9c280b5fc` with policy ID `{FC005318-2251-4387-8964-0BCF777763EA}`. Online doctor returned `overall=OK`, `capture_mode=live`, `delivery_paused=false`, valid Telegram credentials/connectivity, and zero pending, inflight, and quarantined rows.
 - PC2 runtime title qualification passed immediately after rename, after reboot on the same task, and from Android Remote while Windows was locked; each Telegram notification showed the expected 12-grapheme prefix `Personal4 제목…`. No token, DPAPI material, chat ID, raw database, or raw log was transferred for this verification.
-- PC2 is qualified on `personal.4`. PC1 remains on canary.9 pending rollout of the same reviewed package through PC1's own fail-closed readiness result.
+- PC2 is qualified on `personal.4` in `SAC_OFF_DIRECT_TEST`; PC2 did not install the supplemental policy. PC1 remains on canary.9 because its own active Smart App Control result rejected the unsigned policy, as recorded below.
+
+## PC1 Smart App Control authorization result (2026-07-14)
+
+- PC1 kept Secure Boot enabled and the active Microsoft inbox `VerifiedAndReputableDesktop` Base unchanged. No Defender, firewall, Smart App Control, VBS, or other security setting was disabled or relaxed.
+- The exact `personal.4` CIP SHA-256 `06cd25c2ef243f1c99225b13e2ce6890c63dbf9ccfcb7bb52a304be1b63ef80c` was submitted through inbox `CiTool.exe`; the command and operation result were both zero.
+- Four consecutive inventory observations matched project policy ID `{FC005318-2251-4387-8964-0BCF777763EA}`, Base ID `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`, friendly name `CodexTelegramBridge-Personal-Allow`, version `1.0.0.4`, unsigned/non-system identity, and the sole unsigned-policy option. Every observation reported `IsOnDisk=true`, `IsAuthorized=false`, and `IsEnforced=false`.
+- The exact project policy was removed with a zero operation result. Reinspection found it in neither Active nor Staged state. Diagnostic evidence is retained locally as `artifacts/audit/pc1-personal4-policy-raw-2697e84c3b5041f7aca031440185a1f5.{json,log}`; it is not a public artifact.
+- No `personal.4` candidate executable was launched and the Bridge installation was not changed. PC1 continues to run the previously qualified canary.9.
+- The prior readiness logic was invalid because it treated the inbox Smart App Control example XML as runtime authorization evidence. It now requires the exact policy to be already identity-valid, on disk, authorized, and enforced. The compatibility-named install script no longer calls `CiTool --update-policy` or performs rollback mutation.
+- Follow-up hardening validation passed PowerShell parsing, fail-closed mocks for absent, unauthorized, unenforced, identity-mismatched, missing-property, eligible, and SAC-off states, and a fresh 18-file bundle integration run from content-equivalent pre-record checkpoint `0793a2b0093cc548cda556c05bf6da46d25bf0f2`. The smoke bundle outer-manifest SHA-256 was `45485a471c074b3d359b71742d6cfc0df926d4e0c5b4659a86521c0ec3a63d1b`; its ZIP sidecar matched SHA-256 `3dc2b17cfbe2c62237b5ad422064aa7f4cc7783316fc6541eff79c7a7ca4c55d`. The bundled compatibility installer contained zero update/remove calls. This was a static packaging test only; no project executable or policy was launched or installed.
+- A separate exact-hash Base policy is rejected as an alternative: Microsoft documents that multiple Base policies combine as an intersection, so a narrow new Base could block unrelated applications rather than extend the inbox Base. PC1's safe path to the 12-grapheme build is publicly trusted Authenticode signing followed by full qualification.
 
 ## Canary package
 
@@ -273,8 +284,8 @@ This candidate is retained only as an audit record. It must not be deployed beca
 | 12-hour post-rollback observation | PASS — rebooted Windows task delivered at approximately +14 hours; online doctor `OK` |
 | 24-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — update, reboot, locked Android Remote passed; four legacy shadow timeouts require reviewed acknowledgement |
 | 48-hour post-rollback observation | DELIVERY PASS / FORMAL DEGRADED — reboot, locked Android Remote, and Telegram delivery passed at approximately +51 hours; seven legacy shadow timeouts await reviewed acknowledgement |
-| Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; retained as the public-distribution path |
-| Personal exact-hash title-shortening candidate | PC2 QUALIFIED / READY FOR PC1 — exact `personal.4` package, bundle, and policy passed PC2 runtime qualification; no `personal.4` policy or executable has yet been applied to PC1 |
+| Public signed title-shortening candidate | PENDING SignPath Foundation acceptance/configuration; required for PC1 as well as public distribution |
+| Personal exact-hash title-shortening candidate | PC2 QUALIFIED / PC1 BLOCKED — PC2 passed exact `personal.4` in SAC-off direct mode; PC1's inbox SAC reported the exact unsigned supplemental unauthorized and unenforced, then the policy was removed |
 | One additional PC | PASS — PC2 exact identity, online doctor, queue state, rename, reboot, locked-session, Android Remote, and Telegram checks passed on `personal.4` |
 
-PC2 now runs the qualified exact `personal.4` replacement under its unchanged Windows protection. The restored canary.9 installation remains live on PC1 until the same reviewed package, with the policy path selected from PC1's own fail-closed readiness result, replaces it and passes the equivalent runtime checks.
+PC2 now runs the qualified exact `personal.4` replacement under its unchanged Windows protection. The restored canary.9 installation remains live on PC1 until a publicly trusted signed package passes PC1's equivalent runtime checks. The unsigned supplemental path is closed on PC1 and must not be retried.

@@ -2,26 +2,28 @@
 
 ## 목적과 경계
 
-이 배포 경로는 한 사용자가 소유한 Windows PC 두 대에만 같은 Codex 완료 알림 브리지를 설치하기 위한 것이다. 공개 신뢰를 얻는 코드 서명이나 대량 배포를 대체하려는 경로가 아니다. SignPath 신청은 무료 백업 경로로 남기되 PC2 배포의 선행 조건으로 삼지 않는다. 전달되는 final/rollback 패키지는 검증된 두 EXE와 새 manifest만 포함하는 최소 payload이며, 과거 canary 문서와 로컬 기록은 포함하지 않는다.
+이 배포 경로는 한 사용자가 소유한 Windows PC 두 대에만 같은 Codex 완료 알림 브리지를 설치하기 위한 것이다. 공개 신뢰를 얻는 코드 서명이나 대량 배포를 대체하지 않는다. PC2는 SAC가 꺼진 상태에서 `personal.4`를 검증 완료했다. PC1은 활성 Smart App Control이 미서명 보조 정책을 승인하지 않아 canary.9를 유지하며, 12자소 제목판 전환에는 공개 신뢰를 얻은 서명과 재검증이 필요하다. 전달되는 final/rollback 패키지는 검증된 두 EXE와 새 manifest만 포함하는 최소 payload이며, 과거 canary 문서와 로컬 기록은 포함하지 않는다.
 
 PC1과 PC2의 Codex 작업·대화는 서로 로컬이며 같은 계정으로 로그인해도 이 인수인계 작업이 자동으로 보이지 않는다고 가정한다. 따라서 전달물은 실행 파일, 정책, 검증 스크립트와 독립 문서만 포함한다.
 
 ## 보안 모델
 
-표준 Smart App Control 강제 정책의 Base Policy ID는 `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`이다. Windows에 포함된 정책은 unsigned policy와 supplemental policy를 허용한다. 개인용 보조 정책은 이 Base 하나만 확장하며 다음 규칙만 가진다.
+표준 Smart App Control 강제 정책의 Base Policy ID는 `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}`이다. 저장소가 생성한 개인용 보조 정책은 이 Base를 대상으로 하며 다음 규칙만 가진다.
 
 - 최종판 `CodexTelegramBridge.exe`와 `CodexTelegramCtl.exe`
 - 검증된 롤백판 `CodexTelegramBridge.exe`와 `CodexTelegramCtl.exe`
 - 파일별 Authenticode SHA-1, SHA-256, page SHA-1, page SHA-256 해시: 총 16 allow 규칙
 
-Publisher, 파일 이름, 경로, wildcard, signer, deny 또는 allow-all 규칙은 허용하지 않는다. Supplemental 정책에 유효한 `Enabled:Unsigned System Integrity Policy` 외의 옵션도 제거한다. 이 방식은 SAC Base 정책과 Defender를 그대로 유지하면서 정확히 네 PE 이미지에만 신뢰를 더한다.
+Publisher, 파일 이름, 경로, wildcard, signer, deny 또는 allow-all 규칙은 허용하지 않는다. Supplemental 정책에 유효한 `Enabled:Unsigned System Integrity Policy` 외의 옵션도 제거한다. 그러나 규칙이 좁다는 사실은 inbox SAC Base가 그 미서명 보조 정책을 실제로 승인한다는 증거가 아니다.
+
+PC1의 실제 진단에서는 정확한 정책 ID, Base ID, 이름, 버전과 옵션이 일치하고 `IsOnDisk=true`였지만 `IsAuthorized=false`, `IsEnforced=false`였다. 진단 정책은 즉시 완전히 제거했고 후보 EXE는 실행하지 않았다. 별도의 소형 Base 정책도 대안이 아니다. 여러 Base 정책은 합집합이 아니라 교집합으로 적용되므로 관련 없는 프로그램까지 차단할 수 있다.
 
 정책 생성은 Microsoft의 ConfigCI cmdlet을 사용하고, 배포와 제거는 Windows inbox `CiTool.exe`를 사용한다. 정책 XML은 Windows Code Integrity XSD로 검증하고, CIP 파일명은 XML의 실제 Policy ID와 정확히 일치시킨다.
 
 ## 상태별 동작
 
-- SAC 강제 모드: 표준 Base와 supplemental 허용을 확인하고 보조 정책을 설치한 뒤 실행 점검한다.
-- SAC 꺼짐: SAC 상태를 바꾸지 않고 보조 정책 설치를 건너뛴 뒤 직접 실행 점검한다.
+- SAC 강제 모드: 정확한 보조 정책이 이미 `CiTool` 인벤토리에 하나만 존재하고 ID·Base ID·이름·버전·옵션이 일치하며 on-disk, authorized, enforced 상태가 모두 참일 때만 `SAC_ENFORCED_READY`이다. 묶음의 설치 스크립트는 새 정책을 추가하지 않고 이 상태만 재확인한다. 정책이 없거나 승인되지 않았으면 중지한다.
+- SAC 꺼짐: SAC 상태를 바꾸지 않고 보조 정책이 없는 것을 확인한 뒤 직접 실행 점검한다.
 - SAC 평가/불명: 향후 강제 전환 후 동작을 보장할 수 없으므로 중지한다.
 - 추가 비시스템 Base 정책: 여러 Base 정책은 교집합으로 동작하므로 이 보조 정책만으로 실행을 보장할 수 없다. 중지하고 별도 진단한다.
 
@@ -38,7 +40,7 @@ PC2의 Telegram 자격증명은 PC2 사용자 컨텍스트에서 새로 입력�
 
 ## 실패와 롤백
 
-정책 설치 후 활성 확인이 실패하면 설치 스크립트는 이번 실행에서 추가한 정확한 Policy ID만 즉시 제거한다. 후보 실행이 실패하면 제거 스크립트가 Policy ID, Base ID, friendly name과 비시스템 정책 여부를 모두 다시 확인한 다음 그 보조 정책만 제거한다. Windows 11 2024 Update 이전 버전에서는 unsigned 정책 제거 완료에 재부팅이 필요할 수 있다.
+`Install-PersonalSupplementalPolicy.ps1`은 호환성을 위해 파일명을 유지하지만 이제 읽기·검증 전용이며 `CiTool --update-policy` 또는 제거를 호출하지 않는다. 과거 진단 등으로 정확한 프로젝트 정책이 이미 남아 있을 때만 제거 스크립트가 Policy ID, Base ID, friendly name과 비시스템 정책 여부를 다시 확인한 다음 그 정책만 제거한다. Windows 11 2024 Update 이전 버전에서는 unsigned 정책 제거 완료에 재부팅이 필요할 수 있다.
 
 브리지 설치기는 Codex/ChatGPT를 강제 종료하지 않는다. 별도 설치 도우미가 최대 25분 동안 앱 종료를 기다린 뒤, 30분 유효 계획을 적용한다. 설치 트랜잭션 자체의 기존 보상 롤백도 그대로 유지한다.
 

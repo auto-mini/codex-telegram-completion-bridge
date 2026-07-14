@@ -14,7 +14,7 @@
    & .\scripts\Test-PersonalRolloutReadiness.ps1
    ```
 
-2. 결과가 `mode=SAC_ENFORCED_READY`이면 정확한 해시 보조 정책만 설치한다. `mode=SAC_OFF_DIRECT_TEST`이면 이 단계는 건너뛴다. 그 밖의 결과에서는 중지한다.
+2. 결과가 `mode=SAC_ENFORCED_READY`이면 이미 활성화된 정확한 해시 보조 정책을 한 번 더 검증한다. 아래 스크립트는 호환성을 위해 기존 이름을 유지하지만 새 정책을 설치하거나 제거하지 않는다. `mode=SAC_OFF_DIRECT_TEST`이면 이 단계는 건너뛴다. 그 밖의 결과에서는 중지한다.
 
    ```powershell
    & .\scripts\Install-PersonalSupplementalPolicy.ps1 -Apply
@@ -26,7 +26,7 @@
    & .\scripts\Test-PersonalCandidateExecution.ps1
    ```
 
-4. 2단계 뒤 3단계가 실패하면 다른 보안 정책을 건드리지 말고 이 묶음의 보조 정책만 제거한다. 제거 결과가 `reboot_required=yes`이면 재부팅 후 다시 준비 검사를 수행한다.
+4. 이미 존재하던 보조 정책을 사용한 3단계가 실패하면 다른 보안 정책을 건드리지 말고 이 묶음의 정확한 보조 정책만 제거한다. SAC-off 직접 실행 경로에서는 제거할 정책이 없다. 제거 결과가 `reboot_required=yes`이면 재부팅 후 다시 준비 검사를 수행한다.
 
    ```powershell
    & .\scripts\Remove-PersonalSupplementalPolicy.ps1 -Apply
@@ -55,8 +55,8 @@
 - Smart App Control 평가 모드 또는 상태 불명
 - 표준 SAC 외의 추가 강제 Base 정책
 - SAC 강제 모드인데 `VerifiedAndReputableDesktop` Base 정책이 정확히 하나 활성 상태가 아님
-- 표준 SAC 예제 정책에서 unsigned supplemental 허용을 확인할 수 없음
-- 보조 정책의 ID, Base ID, 이름 또는 활성 상태 불일치
+- SAC 강제 모드에서 정확한 보조 정책이 없거나 `IsOnDisk`, `IsAuthorized`, `IsEnforced` 중 하나라도 참이 아님
+- 보조 정책의 ID, Base ID, 이름, 버전, 옵션 또는 서명 상태 불일치
 - 후보 실행 시 Code Integrity 차단
 
 이 조건에서는 보안 설정 변경, `Unblock-File`, Defender 예외, 경로 허용 규칙, 다른 App Control 정책 제거를 시도하지 않는다.

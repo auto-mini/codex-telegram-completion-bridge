@@ -27,17 +27,14 @@ try {
     }
 
     $policies = Get-CiPolicyInventory
-    $matches = @(Get-PolicyById -Policies $policies -PolicyId $policy.PolicyId)
-    if ($matches.Count -eq 0) {
+    $projectPolicyState = Get-PersonalProjectPolicyState -Policies $policies -PolicyMetadata $policy
+    if ($projectPolicyState.Count -eq 0) {
         Write-Output "policy=already_absent"
         Write-Output "policy_id=$($policy.PolicyId)"
         exit 0
     }
 
-    if ($matches.Count -ne 1 -or
-        (ConvertTo-NormalizedGuid $matches[0].BasePolicyID) -ne $policy.BasePolicyId -or
-        -not [string]::Equals([string]$matches[0].FriendlyName, $policy.FriendlyName, [StringComparison]::Ordinal) -or
-        ($null -ne $matches[0].PSObject.Properties["IsSystemPolicy"] -and (ConvertTo-StrictBoolean $matches[0].IsSystemPolicy))) {
+    if (-not $projectPolicyState.Present -or -not $projectPolicyState.IdentityValid) {
         throw "PROJECT_POLICY_REMOVAL_IDENTITY_MISMATCH"
     }
 
