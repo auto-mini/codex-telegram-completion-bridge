@@ -67,19 +67,19 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
                     return sourceClassification;
                 }
 
-                var appMetadata = CodexAppMetadataTitleReader.Read(CodexHome, threadId);
-                if (appMetadata.Kind == AppMetadataTitleKind.Retry)
+                var sessionIndex = CodexSessionIndexTitleReader.Read(CodexHome, threadId);
+                if (sessionIndex.Kind == SessionIndexTitleKind.Retry)
                 {
-                    return new StateResolution(ResolutionKind.NotReady, ErrorCode: appMetadata.ErrorCode);
+                    return new StateResolution(ResolutionKind.NotReady, ErrorCode: sessionIndex.ErrorCode);
                 }
 
-                if (appMetadata.Kind == AppMetadataTitleKind.Unsupported)
+                if (sessionIndex.Kind == SessionIndexTitleKind.Unsupported)
                 {
-                    return new StateResolution(ResolutionKind.Unsupported, ErrorCode: appMetadata.ErrorCode);
+                    return new StateResolution(ResolutionKind.Unsupported, ErrorCode: sessionIndex.ErrorCode);
                 }
 
                 var title = TextNormalizer.NormalizeTitle(
-                    appMetadata.Kind == AppMetadataTitleKind.Present ? appMetadata.Title : row.Title);
+                    sessionIndex.Kind == SessionIndexTitleKind.Present ? sessionIndex.Title : row.Title);
                 return title is null
                     ? new StateResolution(ResolutionKind.NotReady, ErrorCode: "THREAD_TITLE_NOT_READY")
                     : new StateResolution(ResolutionKind.RootReady, title);
@@ -126,6 +126,17 @@ public sealed partial class CodexStateResolver(string codexHome) : IStateResolve
         {
             return false;
         }
+    }
+
+    public bool HasCompatibleTitleIndex()
+    {
+        if (!Directory.Exists(CodexHome))
+        {
+            return false;
+        }
+
+        var result = CodexSessionIndexTitleReader.Read(CodexHome, Guid.Empty.ToString("D"));
+        return result.Kind is SessionIndexTitleKind.Absent or SessionIndexTitleKind.Present;
     }
 
     internal IReadOnlyList<StateDatabaseCandidate> EnumerateCandidates()

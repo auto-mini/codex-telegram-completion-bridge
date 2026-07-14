@@ -10,7 +10,7 @@ This is an independent project and is not affiliated with or endorsed by OpenAI,
 
 ## How it works
 
-The bridge installs as a per-user Codex `notify` hook. It validates a completion event, keeps the existing upstream notifier intact, writes a durable local queue, and lets a per-user scheduled worker deliver the Telegram message. Duplicate events are suppressed. Delivery retries are bounded and honor Telegram rate limits. For current Codex desktop tasks, the visible title in app metadata takes precedence over the legacy state-database title so a rename survives an app or PC restart; the database title remains a fallback only when no app title exists.
+The bridge installs as a per-user Codex `notify` hook. It validates a completion event, keeps the existing upstream notifier intact, writes a durable local queue, and lets a per-user scheduled worker deliver the Telegram message. Duplicate events are suppressed. Delivery retries are bounded and honor Telegram rate limits. For current Codex desktop tasks, the newest valid exact-thread `thread_name` in Codex's append-only `session_index.jsonl` takes precedence over the legacy state-database title so a rename survives an app or PC restart; the database title remains a fallback only when no indexed name exists.
 
 Installation begins in `shadow` mode with no Telegram network activity. The user verifies sampled PC names and visible titles before entering a bot token and enabling live delivery. A title shorter than 12 grapheme clusters is verified by entering the complete title; longer titles require a prefix of at least 12 grapheme clusters.
 
@@ -80,7 +80,7 @@ $ctl = "$env:LOCALAPPDATA\CodexTelegramBridge\bin\CodexTelegramCtl.exe"
 & $ctl resume
 ```
 
-`shadow verify` asks, with no echo, for the exact PC name and at least the first 12 visible characters of the task title. A copied trailing ellipsis is ignored, so a sidebar-truncated title remains verifiable without displaying the full locally stored title.
+`shadow verify` asks, with no echo, for the exact PC name and either the complete task title when it is shorter than 12 grapheme clusters or a visible prefix of at least 12 grapheme clusters for a longer title. A copied trailing ellipsis is ignored, so a sidebar-truncated title remains verifiable without displaying the full locally stored title.
 
 `quarantine list` displays only sequence, timestamp, capture mode, fixed error code, and a shortened opaque event ID. `quarantine acknowledge <sequence>` requires interactive confirmation, converts exactly that reviewed row to `suppressed`, and clears `EVENT_QUARANTINED` only after no quarantined rows remain. It never sends or replays the event.
 
