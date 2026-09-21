@@ -8,6 +8,46 @@ public sealed class QueueStoreIntegrationTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "CodexTelegramIntegration", Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Preview_is_atomic_deduplicated_restart_stable_and_pruned_with_event()
+    {
+        var queue = CreateQueue();
+        var item = CreateEvent(CaptureMode.Live) with { AnswerPreviewDpapi = [1, 2, 3] };
+        Assert.Equal(InsertOutcome.Inserted, queue.TryInsert(item));
+        Assert.Equal(InsertOutcome.Duplicate, queue.TryInsert(item with { AnswerPreviewDpapi = [4, 5] }));
+        var restarted = new QueueStore(queue.DatabasePath);
+        restarted.Initialize();
+        Assert.Equal(new byte[] { 1, 2, 3 }, restarted.GetAnswerPreview(item.EventId));
+        restarted.AcquireNextDue(item.ObservedAtUtc.AddSeconds(1), true);
+        restarted.MarkSent(item.EventId, item.ObservedAtUtc);
+        Assert.Equal(1, restarted.PruneTerminal(item.ObservedAtUtc.AddDays(31)));
+        Assert.Null(restarted.GetAnswerPreview(item.EventId));
+    }
+
+    [Fact]
+    public void Legacy_database_gains_preview_storage_without_changing_existing_events_or_schema_version()
+    {
+        var queue = CreateQueue();
+        var item = CreateEvent(CaptureMode.Live);
+        queue.TryInsert(item);
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = queue.DatabasePath, Pooling = false }.ToString()))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE event_answer_previews;";
+            command.ExecuteNonQuery();
+        }
+
+        queue.ValidateExistingSchema();
+        queue.Initialize();
+        Assert.Equal(1, queue.GetSchemaVersion());
+        Assert.Equal(EventState.Pending, queue.GetEvent(item.EventId)!.State);
+        Assert.Null(queue.GetAnswerPreview(item.EventId));
+        var newItem = CreateEvent(CaptureMode.Live) with { AnswerPreviewDpapi = [1, 2] };
+        Assert.Equal(InsertOutcome.Inserted, queue.TryInsert(newItem));
+        Assert.Equal(new byte[] { 1, 2 }, queue.GetAnswerPreview(newItem.EventId));
+    }
+
+    [Fact]
     public void Deduplicates_and_completes_live_event()
     {
         var queue = CreateQueue();
@@ -125,7 +165,7 @@ public sealed class QueueStoreIntegrationTests : IDisposable
     {
         var queue = CreateQueue();
         var spool = new EmergencySpool(Path.Combine(root, "spool"));
-        var item = CreateEvent(CaptureMode.Shadow);
+        var item = CreateEvent(CaptureMode.Shadow) with { AnswerPreviewDpapi = [1, 2, 3] };
         var connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = queue.DatabasePath,
@@ -146,6 +186,7 @@ public sealed class QueueStoreIntegrationTests : IDisposable
         Assert.Equal(1, result.Imported);
         Assert.Equal(0, spool.CountPending());
         Assert.NotNull(queue.GetEvent(item.EventId));
+        Assert.Equal(item.AnswerPreviewDpapi, queue.GetAnswerPreview(item.EventId));
     }
 
     [Fact]

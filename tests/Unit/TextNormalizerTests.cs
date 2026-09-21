@@ -4,6 +4,44 @@ namespace CodexTelegramUnitTests;
 
 public sealed class TextNormalizerTests
 {
+    [Theory]
+    [InlineData("짧은 답변", "짧은 답변")]
+    [InlineData("12345678901234567890123456789012345678901234567890", "12345678901234567890123456789012345678901234567890")]
+    [InlineData("123456789012345678901234567890123456789012345678901", "12345678901234567890123456789012345678901234567890…")]
+    [InlineData("  답변\r\n다음\t줄\u202e완료  ", "답변 다음 줄 완료")]
+    [InlineData("가나다", "가나다")]
+    public void Renders_bounded_answer_on_fourth_line(string answer, string expected)
+    {
+        var preview = TextNormalizer.NormalizeAnswerPreview(answer);
+        Assert.Equal(expected, preview);
+        Assert.Equal(preview, TextNormalizer.NormalizeAnswerPreview(preview));
+        Assert.Equal("✅ Codex 응답 완료\nPC: PC\n스레드: 제목\n답변: " + expected,
+            TextNormalizer.RenderCompletion("PC", "제목", answer));
+    }
+
+    [Theory]
+    [InlineData("가")]
+    [InlineData("👨‍👩‍👧‍👦")]
+    [InlineData("🇰🇷")]
+    [InlineData("👍🏽")]
+    [InlineData("e\u0301")]
+    public void Answer_preview_preserves_fifty_complete_graphemes(string grapheme)
+    {
+        var answer = string.Concat(Enumerable.Repeat(grapheme, 55));
+        var preview = TextNormalizer.NormalizeAnswerPreview(answer)!;
+        Assert.Equal(string.Concat(Enumerable.Repeat(grapheme, 50)).Normalize() + "…", preview);
+        Assert.Equal(51, System.Globalization.StringInfo.ParseCombiningCharacters(preview).Length);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \n\t\u202e")]
+    public void Missing_answer_preserves_legacy_three_line_completion(string? answer)
+    {
+        Assert.Equal(TextNormalizer.RenderCompletion("PC", "제목"), TextNormalizer.RenderCompletion("PC", "제목", answer));
+    }
+
     [Fact]
     public void Produces_exactly_three_lines_and_removes_injected_separators()
     {

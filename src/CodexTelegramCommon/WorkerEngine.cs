@@ -222,10 +222,10 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
                     byte[] protectedEnvelope;
                     try
                     {
-                        envelope = CreateEnvelope(config, resolution.NormalizedTitle!);
+                        envelope = CreateEnvelope(config, resolution.NormalizedTitle!, ReadAnswerPreview(item.EventId));
                         protectedEnvelope = ProtectedJsonCodec.Protect(envelope, protector);
                     }
-                    catch (Exception exception) when (exception is CryptographicException or InvalidDataException)
+                    catch (Exception exception) when (exception is CryptographicException or InvalidDataException or JsonException)
                     {
                         queue.RescheduleResolution(item.EventId, now + TimeSpan.FromMinutes(5), "ENVELOPE_PROTECT_FAILED");
                         queue.UpsertHealth(HealthCodes.LocalStateBlocked, now);
@@ -378,7 +378,31 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
         return notBefore is null || notBefore <= now;
     }
 
-    private DeliveryEnvelope CreateEnvelope(RuntimeConfig config, string normalizedTitle)
+    private string? ReadAnswerPreview(string eventId)
+    {
+        var encrypted = queue.GetAnswerPreview(eventId);
+        if (encrypted is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var preview = ProtectedJsonCodec.Unprotect<string>(encrypted, protector);
+            if (!string.Equals(preview, TextNormalizer.NormalizeAnswerPreview(preview), StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Answer preview failed validation.");
+            }
+
+            return preview;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(encrypted);
+        }
+    }
+
+    private DeliveryEnvelope CreateEnvelope(RuntimeConfig config, string normalizedTitle, string? answerPreview)
     {
         var pc = TextNormalizer.NormalizePcName(config.PcAlias ?? computerName())
                  ?? throw new InvalidDataException("PC name is unavailable.");
@@ -386,7 +410,8 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
             BridgeConstants.SchemaVersion,
             pc,
             normalizedTitle,
-            TextNormalizer.RenderCompletion(pc, normalizedTitle));
+            TextNormalizer.RenderCompletion(pc, normalizedTitle, answerPreview),
+            answerPreview);
     }
 
     private async Task EnforceThrottleAsync(CancellationToken cancellationToken)
@@ -408,13 +433,15 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
     {
         var pc = TextNormalizer.NormalizePcName(envelope.PcName);
         var title = TextNormalizer.NormalizeTitle(envelope.ThreadTitle);
+        var preview = TextNormalizer.NormalizeAnswerPreview(envelope.AnswerPreview);
         if (envelope.SchemaVersion != BridgeConstants.SchemaVersion ||
             pc is null || title is null ||
             !string.Equals(pc, envelope.PcName, StringComparison.Ordinal) ||
             !string.Equals(title, envelope.ThreadTitle, StringComparison.Ordinal) ||
-            !string.Equals(TextNormalizer.RenderCompletion(envelope.PcName, envelope.ThreadTitle), envelope.TelegramText, StringComparison.Ordinal) ||
+            !string.Equals(preview, envelope.AnswerPreview, StringComparison.Ordinal) ||
+            !string.Equals(TextNormalizer.RenderCompletion(envelope.PcName, envelope.ThreadTitle, preview), envelope.TelegramText, StringComparison.Ordinal) ||
             envelope.TelegramText.Length > BridgeConstants.MaxTelegramTextUtf16Length ||
-            envelope.TelegramText.Split('\n').Length != 3)
+            envelope.TelegramText.Split('\n').Length != (preview is null ? 3 : 4))
         {
             throw new InvalidDataException("Delivery envelope failed validation.");
         }

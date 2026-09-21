@@ -33,7 +33,8 @@ public sealed class HookHandler(
                 parsed.ThreadId!,
                 parsed.TurnId!,
                 DateTimeOffset.UtcNow,
-                config.CaptureMode);
+                config.CaptureMode,
+                ProtectAnswerPreview(parsed.AnswerPreview, protector, log));
             try
             {
                 var spool = new EmergencySpool(layout.SpoolDirectory);
@@ -108,6 +109,24 @@ public sealed class HookHandler(
             Process.Start(start);
         },
         WorkerCoordination.SignalExistingOrCreate);
+
+    private static byte[]? ProtectAnswerPreview(string? preview, ISecretProtector protector, OperationalLog log)
+    {
+        if (preview is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ProtectedJsonCodec.Protect(preview, protector);
+        }
+        catch (System.Security.Cryptography.CryptographicException exception)
+        {
+            log.Write("ERROR", "ANSWER_PREVIEW_PROTECT_FAILED", exception: exception);
+            return null;
+        }
+    }
 
     private void InvokeUpstream(
         InstallationLayout layout,

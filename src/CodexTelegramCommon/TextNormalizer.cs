@@ -47,13 +47,16 @@ public static class TextNormalizer
 
     public static string? NormalizePcName(string? value) => Normalize(value, BridgeConstants.MaxPcNameGraphemes, BridgeConstants.MaxPcNameUtf16Length);
 
-    public static string RenderCompletion(string pcName, string threadTitle) =>
+    public static string? NormalizeAnswerPreview(string? value) => Normalize(value, BridgeConstants.MaxAnswerPreviewGraphemes, BridgeConstants.MaxAnswerPreviewUtf16Length);
+
+    public static string RenderCompletion(string pcName, string threadTitle, string? answerPreview = null) =>
         string.Concat(
             BridgeConstants.CompletionLine,
             "\nPC: ",
             pcName,
             "\n스레드: ",
-            TruncateGraphemes(threadTitle, BridgeConstants.MaxTelegramTitleGraphemes));
+            TruncateGraphemes(threadTitle, BridgeConstants.MaxTelegramTitleGraphemes),
+            NormalizeAnswerPreview(answerPreview) is { } preview ? "\n답변: " + preview : string.Empty);
 
     private static string? Normalize(string? value, int graphemeLimit, int utf16Limit)
     {

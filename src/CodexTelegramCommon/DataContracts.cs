@@ -7,13 +7,15 @@ public sealed record MinimalEvent(
     string ThreadId,
     string TurnId,
     DateTimeOffset ObservedAtUtc,
-    CaptureMode IngestMode);
+    CaptureMode IngestMode,
+    byte[]? AnswerPreviewDpapi = null);
 
 public sealed record DeliveryEnvelope(
     int SchemaVersion,
     string PcName,
     string ThreadTitle,
-    string TelegramText);
+    string TelegramText,
+    string? AnswerPreview = null);
 
 public sealed record TelegramCredentials(
     int SchemaVersion,

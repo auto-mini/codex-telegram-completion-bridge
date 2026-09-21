@@ -15,7 +15,8 @@ public sealed record NotifyParseResult(
     NotifyParseKind Kind,
     string? ThreadId = null,
     string? TurnId = null,
-    string? ErrorCode = null);
+    string? ErrorCode = null,
+    string? AnswerPreview = null);
 
 public static class NotifyPayloadParser
 {
@@ -53,7 +54,8 @@ public static class NotifyPayloadParser
                 return new NotifyParseResult(NotifyParseKind.Invalid, ErrorCode: "PAYLOAD_ID_INVALID");
             }
 
-            return new NotifyParseResult(NotifyParseKind.Completion, threadId, turnId);
+            return new NotifyParseResult(NotifyParseKind.Completion, threadId, turnId,
+                AnswerPreview: ReadAnswerPreview(root));
         }
         catch (JsonException)
         {
@@ -81,6 +83,26 @@ public static class NotifyPayloadParser
         }
 
         return true;
+    }
+
+    private static string? ReadAnswerPreview(JsonElement root)
+    {
+        if (!TryGetUniqueProperty(root, "last-assistant-message", out var message) ||
+            message.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        try
+        {
+            // Retain only the bounded prefix, never the prompt or full answer.
+            return TextNormalizer.NormalizeAnswerPreview(message.GetString());
+        }
+        catch (InvalidOperationException)
+        {
+            // An invalid Unicode string in optional content must not lose the completion.
+            return null;
+        }
     }
 
     private static bool TryGetOpaqueId(JsonElement root, string propertyName, out string value)

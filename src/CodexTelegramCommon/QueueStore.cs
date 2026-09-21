@@ -35,6 +35,14 @@ public sealed class QueueStore(string databasePath)
         }
 
         ValidateSchema(connection);
+        // Additive storage keeps the v1 events table readable by rollback builds.
+        ExecuteNonQuery(connection, """
+            CREATE TABLE IF NOT EXISTS event_answer_previews (
+                event_id TEXT PRIMARY KEY REFERENCES events(event_id) ON DELETE CASCADE,
+                preview_dpapi BLOB NOT NULL
+            );
+            """);
+        ValidateColumns(connection, "event_answer_previews", ["event_id", "preview_dpapi"]);
     }
 
     public int GetSchemaVersion()
@@ -62,7 +70,9 @@ public sealed class QueueStore(string databasePath)
             using var connection = OpenConnection(
                 readOnly: false,
                 busyTimeoutMilliseconds ?? (int)BridgeConstants.HookDatabaseBusyTimeout.TotalMilliseconds);
+            using var transaction = connection.BeginTransaction(deferred: false);
             using var command = connection.CreateCommand();
+            command.Transaction = transaction;
             command.CommandText = """
                 INSERT OR IGNORE INTO events (
                     event_id, machine_id, thread_id, turn_id, observed_at_utc, ingest_mode, state,
@@ -76,12 +86,33 @@ public sealed class QueueStore(string databasePath)
             command.Parameters.AddWithValue("$observed", Format(item.ObservedAtUtc));
             command.Parameters.AddWithValue("$mode", ToDatabase(item.IngestMode));
             command.Parameters.AddWithValue("$next", Format(item.ObservedAtUtc));
-            return command.ExecuteNonQuery() == 1 ? InsertOutcome.Inserted : InsertOutcome.Duplicate;
+            var inserted = command.ExecuteNonQuery() == 1;
+            if (inserted && item.AnswerPreviewDpapi is not null)
+            {
+                using var preview = connection.CreateCommand();
+                preview.Transaction = transaction;
+                preview.CommandText = "INSERT INTO event_answer_previews (event_id, preview_dpapi) VALUES ($event, $preview);";
+                preview.Parameters.AddWithValue("$event", item.EventId);
+                preview.Parameters.Add("$preview", SqliteType.Blob).Value = item.AnswerPreviewDpapi;
+                preview.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+            return inserted ? InsertOutcome.Inserted : InsertOutcome.Duplicate;
         }
         catch (SqliteException exception) when (IsBusy(exception))
         {
             return InsertOutcome.Busy;
         }
+    }
+
+    public byte[]? GetAnswerPreview(string eventId)
+    {
+        using var connection = OpenConnection(readOnly: true, busyTimeoutMilliseconds: 5_000);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT preview_dpapi FROM event_answer_previews WHERE event_id = $event;";
+        command.Parameters.AddWithValue("$event", eventId);
+        return command.ExecuteScalar() as byte[];
     }
 
     public EventRecord? AcquireNextDue(DateTimeOffset nowUtc, bool networkDeliveryAllowed)
@@ -582,6 +613,7 @@ public sealed class QueueStore(string databasePath)
             Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
             Cache = SqliteCacheMode.Private,
             Pooling = false,
+            ForeignKeys = true,
             DefaultTimeout = Math.Max(1, (int)Math.Ceiling(busyTimeoutMilliseconds / 1000d)),
         };
         var connection = new SqliteConnection(builder.ToString());

@@ -16,6 +16,31 @@ public sealed class NotifyPayloadParserTests
         Assert.Equal(NotifyParseKind.Completion, result.Kind);
         Assert.Equal("thread-1", result.ThreadId);
         Assert.Equal("turn-1", result.TurnId);
+        Assert.Equal("secret", result.AnswerPreview);
+    }
+
+    [Fact]
+    public void Retains_only_normalized_answer_prefix_and_never_input_messages()
+    {
+        const string payload = """
+            {"type":"agent-turn-complete","thread-id":"t","turn-id":"u","input-messages":["PRIVATE PROMPT"],"last-assistant-message":"  12345678901234567890123456789012345678901234567890ANSWER TAIL"}
+            """;
+        Assert.Equal("12345678901234567890123456789012345678901234567890…", NotifyPayloadParser.Parse(payload).AnswerPreview);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(",\"last-assistant-message\":null")]
+    [InlineData(",\"last-assistant-message\":123")]
+    [InlineData(",\"last-assistant-message\":[]")]
+    [InlineData(",\"last-assistant-message\":\" \\n\\t\"")]
+    [InlineData(",\"last-assistant-message\":\"first\",\"last-assistant-message\":\"second\"")]
+    [InlineData(",\"last-assistant-message\":\"\\uD800\"")]
+    public void Unusable_optional_answer_does_not_drop_completion(string property)
+    {
+        var result = NotifyPayloadParser.Parse("{\"type\":\"agent-turn-complete\",\"thread-id\":\"t\",\"turn-id\":\"u\"" + property + "}");
+        Assert.Equal(NotifyParseKind.Completion, result.Kind);
+        Assert.Null(result.AnswerPreview);
     }
 
     [Fact]

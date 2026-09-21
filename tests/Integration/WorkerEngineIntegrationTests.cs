@@ -7,6 +7,80 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "WorkerEngineTests", Guid.NewGuid().ToString("N"));
     private readonly ReversingProtector protector = new();
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Hook_to_delivery_keeps_only_answer_prefix_across_spool_duplicates_and_worker_restart(bool useSpool)
+    {
+        var fixture = CreateFixture(CaptureMode.Live, new StateResolution(ResolutionKind.RootReady, "Title"));
+        fixture.SaveCredentials();
+        new ProtectedJsonStore<UpstreamRecord>(fixture.Layout.UpstreamPath, protector).Save(new UpstreamRecord(
+            BridgeConstants.SchemaVersion, [], null, null, fixture.Now, new string('0', 64), UpstreamKind.Absent));
+        if (useSpool)
+        {
+            File.WriteAllText(fixture.Layout.LocalStateBlockedMarkerPath, "blocked");
+        }
+
+        const string payload = """
+            {"type":"agent-turn-complete","thread-id":"thread","turn-id":"turn","input-messages":["PRIVATE_PROMPT"],"last-assistant-message":"12345678901234567890123456789012345678901234567890PRIVATE_ANSWER_TAIL"}
+            """;
+        var hook = new HookHandler(protector, new VendorExecutableValidator(root), _ => { }, _ => { });
+        Assert.Equal(0, hook.Handle(fixture.Layout, payload));
+        Assert.Equal(0, hook.Handle(fixture.Layout, payload.Replace("12345678901234567890123456789012345678901234567890", "changed duplicate")));
+        File.Delete(fixture.Layout.LocalStateBlockedMarkerPath);
+        fixture.Now = DateTimeOffset.UtcNow.AddSeconds(2);
+        fixture.Telegram.Outcomes.Enqueue(new TelegramCallResult(TelegramCallOutcome.Retry, "HTTP_500"));
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+
+        var eventId = Hashing.EventId(fixture.Config.MachineId, "thread", "turn");
+        fixture.Now = fixture.Queue.GetEvent(eventId)!.NextAttemptAtUtc.AddSeconds(2);
+        fixture.Resolver.Result = new StateResolution(ResolutionKind.RootReady, "Renamed title");
+        var restarted = new WorkerEngine(fixture.Layout, new QueueStore(fixture.Layout.DatabasePath),
+            new EmergencySpool(fixture.Layout.SpoolDirectory), fixture.ConfigStore, protector,
+            _ => fixture.Resolver, _ => fixture.Telegram, () => fixture.Now, () => "Changed PC",
+            new OperationalLog(fixture.Layout.LogPath), () => new AclVerificationResult(true, "INSTALL_ACL_OK"));
+        await restarted.ProcessOneAsync(CancellationToken.None);
+
+        Assert.Equal(2, fixture.Telegram.SentTexts.Count);
+        Assert.All(fixture.Telegram.SentTexts, text => Assert.Equal(
+            "✅ Codex 응답 완료\nPC: Test PC\n스레드: Title\n답변: 12345678901234567890123456789012345678901234567890…", text));
+        Assert.Equal(1, fixture.Resolver.CallCount);
+        Assert.Equal(1, fixture.Queue.GetCounts().Sent);
+        Assert.Equal(0, new EmergencySpool(fixture.Layout.SpoolDirectory).CountPending());
+        foreach (var path in Directory.EnumerateFiles(fixture.Layout.StateDirectory, "*", SearchOption.AllDirectories)
+                     .Append(fixture.Layout.LogPath))
+        {
+            var raw = System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(path));
+            Assert.DoesNotContain("PRIVATE_PROMPT", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("PRIVATE_ANSWER_TAIL", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("12345678901234567890", raw, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task Answer_preview_in_shadow_is_encrypted_and_not_sent()
+    {
+        var fixture = CreateFixture(CaptureMode.Shadow, new StateResolution(ResolutionKind.RootReady, "Title"));
+        var item = fixture.Enqueue("답변 앞부분 테스트입니다");
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+        Assert.Equal(EventState.Shadow, fixture.Queue.GetEvent(item.EventId)!.State);
+        Assert.Empty(fixture.Telegram.SentTexts);
+        var envelope = ProtectedJsonCodec.Unprotect<DeliveryEnvelope>(fixture.Queue.GetShadowEnvelope(1)!, protector);
+        Assert.Equal("답변 앞부분 테스트입니다", envelope.AnswerPreview);
+        Assert.EndsWith("\n답변: 답변 앞부분 테스트입니다", envelope.TelegramText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Preview_does_not_bypass_subagent_suppression()
+    {
+        var fixture = CreateFixture(CaptureMode.Live, new StateResolution(ResolutionKind.Subagent));
+        fixture.SaveCredentials();
+        var item = fixture.Enqueue("subagent answer");
+        await fixture.Engine.ProcessOneAsync(CancellationToken.None);
+        Assert.Equal(EventState.Suppressed, fixture.Queue.GetEvent(item.EventId)!.State);
+        Assert.Empty(fixture.Telegram.SentTexts);
+    }
+
     [Fact]
     public async Task Shadow_root_is_encrypted_and_never_sent()
     {
@@ -214,7 +288,7 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
         public DateTimeOffset Now { get; set; } = now;
         public WorkerEngine Engine { get; set; } = null!;
 
-        public MinimalEvent Enqueue()
+        public MinimalEvent Enqueue(string? answer = null)
         {
             var threadId = Guid.NewGuid().ToString("D");
             var turnId = Guid.NewGuid().ToString("D");
@@ -225,7 +299,8 @@ public sealed class WorkerEngineIntegrationTests : IDisposable
                 threadId,
                 turnId,
                 Now,
-                Config.CaptureMode);
+                Config.CaptureMode,
+                answer is null ? null : ProtectedJsonCodec.Protect(TextNormalizer.NormalizeAnswerPreview(answer), protector));
             Assert.Equal(InsertOutcome.Inserted, Queue.TryInsert(item));
             return item;
         }
