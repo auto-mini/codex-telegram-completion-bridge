@@ -13,6 +13,8 @@ PC: My PC
 
 The preview is captured from the completion event's `last-assistant-message`, so it describes the completed turn rather than an intermediate progress update. Whitespace is collapsed and Unicode grapheme boundaries preserve Korean characters and emoji. Missing, blank, or malformed answer fields keep the existing three-line notification. The bounded preview is encrypted with current-user Windows DPAPI before it enters the queue or emergency spool, and delivery retries reuse the same encrypted message.
 
+Heartbeat control envelopes are interpreted before truncation: `DONT_NOTIFY` produces no Telegram message, while `NOTIFY` sends the first 50 graphemes of its human-readable `message`. Automation IDs and XML control tags are never used as the preview. Unusable heartbeat envelopes are suppressed. Ordinary answers are not suppressed by keywords such as “normal” or “no errors.” This applies to both the legacy hook and the stdin Stop adapter.
+
 > **Release status:** the first public release is an unsigned preview needed for public review and the SignPath Foundation application. Windows may block it. Do not disable Smart App Control, Microsoft Defender, or another security control to run an unsigned artifact. The proven local canary remains the operational build until a signed release passes the full qualification gate.
 
 This is an independent project and is not affiliated with or endorsed by OpenAI, Telegram, or Microsoft.

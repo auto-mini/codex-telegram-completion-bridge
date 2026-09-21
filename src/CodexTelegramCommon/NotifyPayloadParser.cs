@@ -54,8 +54,11 @@ public static class NotifyPayloadParser
                 return new NotifyParseResult(NotifyParseKind.Invalid, ErrorCode: "PAYLOAD_ID_INVALID");
             }
 
-            return new NotifyParseResult(NotifyParseKind.Completion, threadId, turnId,
-                AnswerPreview: ReadAnswerPreview(root));
+            var content = ReadNotificationContent(root);
+            return content.ShouldNotify
+                ? new NotifyParseResult(NotifyParseKind.Completion, threadId, turnId,
+                    AnswerPreview: TextNormalizer.NormalizeAnswerPreview(content.Message))
+                : new NotifyParseResult(NotifyParseKind.Ignored, ErrorCode: "HEARTBEAT_SUPPRESSED");
         }
         catch (JsonException)
         {
@@ -85,23 +88,22 @@ public static class NotifyPayloadParser
         return true;
     }
 
-    private static string? ReadAnswerPreview(JsonElement root)
+    private static NotificationContent ReadNotificationContent(JsonElement root)
     {
         if (!TryGetUniqueProperty(root, "last-assistant-message", out var message) ||
             message.ValueKind != JsonValueKind.String)
         {
-            return null;
+            return new NotificationContent(true, null);
         }
 
         try
         {
-            // Retain only the bounded prefix, never the prompt or full answer.
-            return TextNormalizer.NormalizeAnswerPreview(message.GetString());
+            return HeartbeatNotificationFilter.Select(message.GetString());
         }
         catch (InvalidOperationException)
         {
             // An invalid Unicode string in optional content must not lose the completion.
-            return null;
+            return new NotificationContent(true, null);
         }
     }
 

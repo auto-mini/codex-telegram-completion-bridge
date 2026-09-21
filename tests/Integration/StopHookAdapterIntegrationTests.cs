@@ -9,6 +9,37 @@ public sealed class StopHookAdapterIntegrationTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "StopHookAdapterTests", Guid.NewGuid().ToString("N"));
 
     [Theory]
+    [InlineData("DONT_NOTIFY")]
+    [InlineData("UNKNOWN")]
+    public async Task Silent_heartbeat_does_not_launch_bridge(string decision)
+    {
+        var result = await RunAsync(JsonSerializer.Serialize(new
+        {
+            hook_event_name = "Stop", session_id = "thread", turn_id = "turn",
+            last_assistant_message = "<heartbeat><automation_id>test</automation_id><decision>" + decision + "</decision><message>상태 변화 없음</message></heartbeat>",
+        }));
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("{}", result.Stdout.Trim());
+        Assert.Empty(result.Stderr);
+        Assert.False(File.Exists(result.Observation));
+    }
+
+    [Fact]
+    public async Task Notifying_heartbeat_forwards_only_human_message()
+    {
+        var result = await RunAsync(JsonSerializer.Serialize(new
+        {
+            hook_event_name = "Stop", session_id = "thread", turn_id = "turn",
+            last_assistant_message = "<heartbeat><automation_id>test</automation_id><decision>NOTIFY</decision><message>오류 &amp; 복구\n" + new string('가', 60) + "</message></heartbeat>",
+        }));
+        Assert.Empty(result.Stderr);
+        using var observation = JsonDocument.Parse(File.ReadAllText(result.Observation));
+        using var payload = JsonDocument.Parse(observation.RootElement.GetProperty("Arguments")[1].GetString()!);
+        Assert.Equal("오류 & 복구 " + new string('가', 42) + "…", payload.RootElement.GetProperty("last-assistant-message").GetString());
+        Assert.DoesNotContain("automation_id", observation.RootElement.GetProperty("Arguments")[1].GetString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("가")]
     [InlineData("👨‍👩‍👧‍👦")]
     public async Task Large_stdin_reaches_bridge_as_one_bounded_unicode_safe_argument(string grapheme)

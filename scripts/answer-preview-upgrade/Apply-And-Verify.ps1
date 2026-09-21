@@ -27,7 +27,7 @@ try {
     $doctor = $doctorJson | ConvertFrom-Json
     $unexpected = @($doctor.conditions | Where-Object { $_ -ne 'EVENT_QUARANTINED' })
     if ($doctorExit -notin @(0,1) -or $unexpected.Count -gt 0 -or $doctor.checks.telegram_online -ne 'OK' -or $doctor.checks.runtime_config -ne 'OK' -or $doctor.checks.package_manifest -notlike 'OK_*') { throw 'POST_INSTALL_DIAGNOSTIC_FAILED' }
-    [ordered]@{status='installed_and_verified';version='1.0.1.0';credentials_preserved=$true;runtime_preserved=$true;telegram_online='OK';existing_quarantine_preserved=$true;completed_utc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
+    [ordered]@{status='installed_and_verified';version=(Get-Item -LiteralPath $installedCtl).VersionInfo.FileVersion;credentials_preserved=$true;runtime_preserved=$true;telegram_online='OK';existing_quarantine_preserved=$true;completed_utc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
 } catch {
     [ordered]@{status='needs_attention';error_type=$_.Exception.GetType().Name;completed_utc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
     exit 3

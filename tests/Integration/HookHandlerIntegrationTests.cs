@@ -10,6 +10,24 @@ public sealed class HookHandlerIntegrationTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "HookHandlerTests", Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Legacy_silent_heartbeat_never_enqueues_or_starts_worker()
+    {
+        var layout = PrepareLayout();
+        var starts = 0;
+        var signals = 0;
+        var handler = new HookHandler(new ReversingProtector(), new VendorExecutableValidator(root), _ => starts++, _ => signals++);
+        var payload = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            ["type"] = "agent-turn-complete", ["thread-id"] = "thread", ["turn-id"] = "turn",
+            ["last-assistant-message"] = "<heartbeat><automation_id>test</automation_id><decision>DONT_NOTIFY</decision><message>변화 없음</message></heartbeat>",
+        });
+        Assert.Equal(0, handler.Handle(layout, payload));
+        Assert.Equal(0, new QueueStore(layout.DatabasePath).GetCounts().Pending);
+        Assert.Equal(0, starts);
+        Assert.Equal(0, signals);
+    }
+
+    [Fact]
     public void Valid_completion_is_durable_and_starts_worker_once()
     {
         var layout = PrepareLayout();

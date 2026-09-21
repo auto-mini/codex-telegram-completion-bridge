@@ -11,6 +11,8 @@ After the user explicitly configures a Telegram bot and enables live delivery, t
 - at most the first 12 Unicode grapheme clusters of the visible Codex task title; and
 - at most the first 50 Unicode grapheme clusters of the final answer, followed by an ellipsis when truncated. Answers of 50 grapheme clusters or fewer are sent in full. Missing or unusable answer fields omit this line.
 
+For structured heartbeat replies, `DONT_NOTIFY` is honored without sending a message. A `NOTIFY` reply contributes only the first 50 grapheme clusters of its human-readable `message`, not the automation ID or XML control envelope. Invalid or unknown heartbeat control envelopes are suppressed.
+
 Messages are sent directly to `https://api.telegram.org` using the bot and chat selected by the user. Telegram processes and stores those messages under its own [privacy policy](https://telegram.org/privacy). The answer prefix can contain task content. The remainder of a longer answer, prompt body, files, and conversation transcript are not sent by this program.
 
 During one-time setup, the program calls Telegram Bot API methods needed to validate the bot, select the user's private chat, reject webhooks, and send a test message. It does not accept group or channel chats.

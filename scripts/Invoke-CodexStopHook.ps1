@@ -44,6 +44,37 @@ try {
         }
         $preview = $null
         $answer = Read-UniqueString $root 'last_assistant_message'
+        if ($null -ne $answer -and $answer.Trim().StartsWith('<heartbeat>', [StringComparison]::Ordinal)) {
+            $notify = $false
+            $xmlReader = $null
+            try {
+                $settings = [Xml.XmlReaderSettings]::new()
+                $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+                $settings.XmlResolver = $null
+                $settings.MaxCharactersInDocument = 2097152
+                $xmlReader = [Xml.XmlReader]::Create([IO.StringReader]::new($answer.Trim()), $settings)
+                $heartbeat = [Xml.Linq.XDocument]::Load($xmlReader).Root
+                if ($heartbeat.Name -eq [Xml.Linq.XName]'heartbeat') {
+                    $decisions = @($heartbeat.Elements([Xml.Linq.XName]'decision'))
+                    $messages = @($heartbeat.Elements([Xml.Linq.XName]'message'))
+                    $ids = @($heartbeat.Elements([Xml.Linq.XName]'automation_id'))
+                    if ($ids.Count -eq 1 -and -not [string]::IsNullOrWhiteSpace($ids[0].Value) -and
+                        $decisions.Count -eq 1 -and $decisions[0].Value.Trim() -ceq 'NOTIFY' -and
+                        $messages.Count -eq 1 -and -not [string]::IsNullOrWhiteSpace($messages[0].Value)) {
+                        $answer = $messages[0].Value
+                        $notify = $true
+                    }
+                }
+            } catch [Xml.XmlException] {
+                $notify = $false
+            } finally {
+                if ($null -ne $xmlReader) { $xmlReader.Dispose() }
+            }
+            if (-not $notify) {
+                [Console]::Out.WriteLine('{}')
+                exit 0
+            }
+        }
         if ($null -ne $answer) {
             $normalized = [regex]::Replace($answer.Normalize([Text.NormalizationForm]::FormC), '[\s\p{Cc}\u061c\u200e-\u200f\u202a-\u202e\u2066-\u2069]+', ' ').Trim()
             $indexes = [Globalization.StringInfo]::ParseCombiningCharacters($normalized)
