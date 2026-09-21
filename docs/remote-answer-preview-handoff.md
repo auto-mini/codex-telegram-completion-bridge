@@ -6,15 +6,15 @@
 
 - GitHub 저장소: `auto-mini/codex-telegram-completion-bridge`
 - 브랜치: `codex/answer-preview-50` (실행 시 전달 메시지에 지정된 커밋 SHA로 고정할 것)
-- 초안 릴리스 태그: `v1.0.1-personal.2`
-- ZIP: `CodexTelegramBridge-1.0.1-personal.2-win-x64.zip`
-- ZIP SHA-256: `83f16c5f9008970477c3f7eeddc6e487e2768cd5f06e61e8f9724a5e7532b1b9`
-- 압축 해제한 `manifest.sha256`의 SHA-256: `fcc123e0203ff9dce211b90a51c6407fc0383a002a70af3774f73f1c61ab0262`
-- 설치 EXE 파일 버전: `1.0.1.0`. 버전만으로 50자판인지 판정하지 말고 반드시 패키지와 EXE 해시를 비교한다.
+- 초안 릴리스 태그: `v1.0.2-personal.1`
+- ZIP: `CodexTelegramBridge-1.0.2-personal.1-win-x64.zip`
+- ZIP SHA-256: `463ecedd8ade8b68b8ebdd0ff19074db2964ab91e740218d9994524f71f068f5`
+- 압축 해제한 `manifest.sha256`의 SHA-256: `147f9d9fb1237990271c62b075b7f518ed69460fdb8237c70a7de665b09dfb9f`
+- 설치 EXE 파일 버전: `1.0.2.0`. 버전만으로 50자판인지 판정하지 말고 반드시 패키지와 EXE 해시를 비교한다.
 
 이 초안은 사용자 소유 PC 사이의 전달용이다. 공개 릴리스로 게시하거나 latest로 설정하지 않는다. 일반 공개 배포의 CI/서명 자격 심사를 대체하지 않는다. 실행 파일은 미서명이다.
 
-**필수 보완:** ZIP의 실행 파일만 설치하면 긴 대화에서 Windows 명령줄 제한 때문에 알림이 누락될 수 있다. 최신 고정 커밋의 `Invoke-CodexStopHook.ps1`과 아래 표준입력 훅 설정까지 함께 적용해야 한다. 원본 PC에서는 기존에 실패하던 같은 작업에서 재시작 후 자동 전송, 앞 50자 일치, 재시도 0회를 확인했다. ZIP 자체와 위 해시는 변경되지 않았다.
+**필수 보완:** ZIP의 실행 파일만 설치하면 긴 대화에서 Windows 명령줄 제한 때문에 알림이 누락될 수 있다. 최신 고정 커밋의 `Invoke-CodexStopHook.ps1`과 아래 표준입력 훅 설정까지 함께 적용해야 한다. 원본 PC에서는 기존에 실패하던 같은 작업에서 재시작 후 자동 전송, 앞 50자 일치, 재시도 0회를 확인했다. 현재 전달물은 하트비트 필터까지 포함한 1.0.2 패키지다. 이전 1.0.1-personal.2 파일을 설치하지 말 것. `DONT_NOTIFY`는 전송하지 않고, `NOTIFY`는 실제 message의 앞 50자만 보낸다.
 
 ## 1. 실제 대상 PC 사전 점검
 
@@ -29,7 +29,7 @@
 현재 작업에서 충돌 없는 별도 checkout에 저장소를 clone한 뒤 전달 메시지의 정확한 커밋으로 checkout한다. 기존 사용자 checkout을 강제로 reset하지 않는다. `.codex-remote-attachments` 같은 로컬 첨부 자료는 필요 없다.
 
 ```powershell
-gh release download v1.0.1-personal.2 --repo auto-mini/codex-telegram-completion-bridge --pattern 'CodexTelegramBridge-1.0.1-personal.2-win-x64.zip*' --pattern 'manifest.outer.sha256' --dir $downloadDir
+gh release download v1.0.2-personal.1 --repo auto-mini/codex-telegram-completion-bridge --pattern 'CodexTelegramBridge-1.0.2-personal.1-win-x64.zip*' --pattern 'manifest.outer.sha256' --dir $downloadDir
 ```
 
 1. ZIP SHA-256을 위의 고정값과 비교하고 일치할 때만 새 `$packageDir`로 압축 해제한다. ZIP 안의 최상위에는 `bin`, `scripts`, `manifest.sha256` 등이 직접 존재한다.
@@ -58,7 +58,7 @@ gh release download v1.0.1-personal.2 --repo auto-mini/codex-telegram-completion
 ```powershell
 & .\scripts\answer-preview-upgrade\Start-AnswerPreviewUpgrade.ps1 `
     -PackageRoot $packageDir `
-    -ExpectedManifestSha256 'fcc123e0203ff9dce211b90a51c6407fc0383a002a70af3774f73f1c61ab0262'
+    -ExpectedManifestSha256 '147f9d9fb1237990271c62b075b7f518ed69460fdb8237c70a7de665b09dfb9f'
 ```
 
 이 스크립트는 기존 설치의 정상 여부를 확인하고, 보호된 `backups` 아래에 설치 계획/상태 기록을 만들고, 현재 사용자의 Interactive/Limited 예약 작업을 등록해 즉시 시작한다. 계획 유효기간은 30분, 앱 종료 대기는 25분이다. 직접 `Start-Process`로만 도우미를 띄우지 않는다. 원본 PC에서 그 방식의 도우미가 앱 재시작 때 설치 전에 종료됐고 Windows 예약 작업 방식으로 정상 완료했다.
