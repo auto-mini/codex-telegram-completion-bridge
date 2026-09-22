@@ -1,5 +1,21 @@
 #requires -Version 7.2
 
+function Resolve-CodexNativeExecutable {
+    param([string]$RequestedPath)
+    if ($RequestedPath -and [IO.Path]::GetExtension($RequestedPath) -ieq '.exe' -and (Test-Path -LiteralPath $RequestedPath -PathType Leaf)) {
+        return [IO.Path]::GetFullPath($RequestedPath)
+    }
+    $desktopRoot = (Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin') + [IO.Path]::DirectorySeparatorChar
+    $running = @(Get-CimInstance Win32_Process -Filter "Name='codex.exe'" | Where-Object {
+        $_.ExecutablePath -and $_.ExecutablePath.StartsWith($desktopRoot, [StringComparison]::OrdinalIgnoreCase)
+    } | Select-Object -ExpandProperty ExecutablePath -Unique)
+    if ($running.Count -eq 1) { return $running[0] }
+    if ($running.Count -gt 1) { throw 'CODEX_NATIVE_EXECUTABLE_AMBIGUOUS' }
+    $command = Get-Command codex.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command) { return $command.Source }
+    throw 'CODEX_NATIVE_EXECUTABLE_NOT_FOUND'
+}
+
 function Get-CodexStopHookCommand {
     param([string]$PowerShellPath, [string]$AdapterPath, [string]$BridgePath)
     $windowsShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -12,7 +28,8 @@ function Get-CodexStopHookCommand {
 }
 
 function Invoke-CodexLocalRpc {
-    param([string]$Method, [hashtable]$Params, [string]$CodexPath = (Get-Command codex -ErrorAction Stop).Source)
+    param([string]$Method, [hashtable]$Params, [string]$CodexPath)
+    $CodexPath = Resolve-CodexNativeExecutable -RequestedPath $CodexPath
     $start = [Diagnostics.ProcessStartInfo]::new($CodexPath)
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true

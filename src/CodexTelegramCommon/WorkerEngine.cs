@@ -121,7 +121,7 @@ public sealed class WorkerEngine : IWorkerIterationProcessor
                 // The local store may be part of the ACL failure. Network delivery remains blocked.
             }
 
-            log.Write("ERROR", HealthCodes.InstallAclBlocked);
+            log.Write("ERROR", acl.OperationCode);
             return new WorkerIterationResult(WorkerIterationKind.Blocked);
         }
 

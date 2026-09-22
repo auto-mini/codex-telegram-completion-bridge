@@ -133,7 +133,25 @@ public static class WindowsAclManager
         }
     }
 
-    public static AclVerificationResult VerifyTree(string root, string userSid)
+    public static AclVerificationResult VerifyTree(string root, string userSid) => VerifyTree(root, userSid, null);
+
+    internal static AclVerificationResult VerifyTree(string root, string userSid, Action? afterEnumeration)
+    {
+        // SQLite sidecars and atomic-write files can disappear after enumeration.
+        // Restart the complete verification; never treat an unchecked entry as safe.
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var result = VerifyTreeSnapshot(root, userSid, afterEnumeration);
+            if (result.OperationCode != "INSTALL_ACL_SNAPSHOT_CHANGED")
+            {
+                return result;
+            }
+        }
+
+        return new AclVerificationResult(false, "INSTALL_ACL_SNAPSHOT_CHANGED");
+    }
+
+    private static AclVerificationResult VerifyTreeSnapshot(string root, string userSid, Action? afterEnumeration)
     {
         var rootResult = VerifyRoot(root, userSid);
         if (!rootResult.IsValid)
@@ -144,7 +162,9 @@ public static class WindowsAclManager
         try
         {
             var expectedUser = ParseSid(userSid);
-            foreach (var entry in EnumerateTreeWithoutFollowingReparsePoints(root))
+            var entries = EnumerateTreeWithoutFollowingReparsePoints(root);
+            afterEnumeration?.Invoke();
+            foreach (var entry in entries)
             {
                 if (entry.IsReparsePoint)
                 {
@@ -173,6 +193,10 @@ public static class WindowsAclManager
             }
 
             return new AclVerificationResult(true, "INSTALL_ACL_OK");
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return new AclVerificationResult(false, "INSTALL_ACL_SNAPSHOT_CHANGED");
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or IdentityNotMappedException)
         {

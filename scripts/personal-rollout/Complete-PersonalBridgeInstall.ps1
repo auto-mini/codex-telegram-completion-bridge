@@ -35,7 +35,17 @@ try {
     do {
         $running = @(
             Get-Process -ErrorAction SilentlyContinue | Where-Object {
-                $_.ProcessName -in @("Codex", "ChatGPT", "codex-app-server")
+                if ($_.ProcessName -notin @("Codex", "ChatGPT", "codex-app-server")) { return $false }
+                if ($_.ProcessName -ieq 'codex') {
+                    try {
+                        $path = $_.MainModule.FileName
+                        $npmRoot = (Join-Path $env:APPDATA 'npm\node_modules\@openai\codex') + [IO.Path]::DirectorySeparatorChar
+                        if ($path -and [IO.Path]::IsPathRooted($path) -and [IO.Path]::GetFullPath($path).StartsWith($npmRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                            return $false
+                        }
+                    } catch { }
+                }
+                return $true
             }
         )
         foreach ($process in $running) {

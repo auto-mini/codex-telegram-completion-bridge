@@ -7,6 +7,46 @@ public sealed class WindowsAclManagerIntegrationTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "WindowsAclManagerTests", Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Retired_temporary_file_rechecks_fresh_tree_instead_of_blocking_delivery()
+    {
+        var sid = CurrentUserContext.Sid;
+        WindowsAclManager.CreateProtectedRoot(root, sid);
+        var temporary = Path.Combine(root, ".atomic-write.tmp");
+        AtomicFile.WriteUtf8(temporary, "temporary generated state");
+        var enumerations = 0;
+        var result = WindowsAclManager.VerifyTree(root, sid, () =>
+        {
+            if (++enumerations == 1) { File.Delete(temporary); }
+        });
+
+        Assert.True(result.IsValid, result.OperationCode);
+        Assert.Equal(2, enumerations);
+    }
+
+    [Fact]
+    public void Retrying_a_changed_snapshot_does_not_accept_invalid_permissions()
+    {
+        var sid = CurrentUserContext.Sid;
+        WindowsAclManager.CreateProtectedRoot(root, sid);
+        var temporary = Path.Combine(root, ".atomic-write.tmp");
+        AtomicFile.WriteUtf8(temporary, "temporary generated state");
+        var callbacks = 0;
+        var result = WindowsAclManager.VerifyTree(root, sid, () =>
+        {
+            if (++callbacks != 1) { return; }
+            File.Delete(temporary);
+            var security = new DirectoryInfo(root).GetAccessControl();
+            security.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+                new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinUsersSid, null),
+                System.Security.AccessControl.FileSystemRights.Read,
+                System.Security.AccessControl.AccessControlType.Allow));
+            new DirectoryInfo(root).SetAccessControl(security);
+        });
+        Assert.False(result.IsValid);
+        Assert.Equal("INSTALL_ACL_RULES_INVALID", result.OperationCode);
+    }
+
+    [Fact]
     public void Protected_root_and_normalized_descendants_verify()
     {
         var sid = CurrentUserContext.Sid;

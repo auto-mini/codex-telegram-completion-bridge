@@ -1,7 +1,7 @@
 #requires -Version 7.2
 [CmdletBinding()]
 param(
-    [string]$CodexPath = (Get-Command codex -ErrorAction Stop).Source,
+    [string]$CodexPath,
     [string]$PowerShellPath = (Get-Command pwsh -ErrorAction Stop).Source,
     [string]$VerificationCwd = (Get-Location).Path
 )
@@ -9,6 +9,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'CodexHook.Common.ps1')
+$CodexPath = Resolve-CodexNativeExecutable -RequestedPath $CodexPath
 foreach ($executable in @($CodexPath, $PowerShellPath)) {
     if (-not [IO.Path]::IsPathFullyQualified($executable) -or -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
         throw 'EXECUTABLE_PATH_INVALID'
