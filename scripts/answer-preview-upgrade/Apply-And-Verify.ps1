@@ -25,9 +25,13 @@ try {
     $doctorExit = $LASTEXITCODE
     $doctorJson | Set-Content -LiteralPath (Join-Path $stage 'doctor-after.json') -Encoding UTF8
     $doctor = $doctorJson | ConvertFrom-Json
-    $unexpected = @($doctor.conditions | Where-Object { $_ -ne 'EVENT_QUARANTINED' })
-    if ($doctorExit -notin @(0,1) -or $unexpected.Count -gt 0 -or $doctor.checks.telegram_online -ne 'OK' -or $doctor.checks.runtime_config -ne 'OK' -or $doctor.checks.package_manifest -notlike 'OK_*') { throw 'POST_INSTALL_DIAGNOSTIC_FAILED' }
-    [ordered]@{status='installed_and_verified';version=(Get-Item -LiteralPath $installedCtl).VersionInfo.FileVersion;credentials_preserved=$true;runtime_preserved=$true;telegram_online='OK';existing_quarantine_preserved=$true;completed_utc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
+    $allowedHistorical = @('EVENT_QUARANTINED')
+    if (@($before.conditions) -contains 'STATE_SCHEMA_BLOCKED' -and $doctor.checks.codex_state_schema -eq 'COMPATIBLE') {
+        $allowedHistorical += 'STATE_SCHEMA_BLOCKED'
+    }
+    $unexpected = @($doctor.conditions | Where-Object { $_ -notin $allowedHistorical })
+    if ($doctorExit -notin @(0,1) -or $unexpected.Count -gt 0 -or $doctor.checks.codex_state_schema -ne 'COMPATIBLE' -or $doctor.checks.telegram_online -ne 'OK' -or $doctor.checks.runtime_config -ne 'OK' -or $doctor.checks.package_manifest -notlike 'OK_*') { throw 'POST_INSTALL_DIAGNOSTIC_FAILED' }
+    [ordered]@{status='installed_and_verified';version=(Get-Item -LiteralPath $installedCtl).VersionInfo.FileVersion;credentials_preserved=$true;runtime_preserved=$true;telegram_online='OK';state_schema='COMPATIBLE';remaining_conditions=@($doctor.conditions);existing_quarantine_preserved=$true;completed_utc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
 } catch {
     [ordered]@{status='needs_attention';error_type=$_.Exception.GetType().Name;completed_utc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
     exit 3

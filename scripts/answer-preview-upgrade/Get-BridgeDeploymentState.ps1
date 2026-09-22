@@ -38,7 +38,7 @@ $tasks = foreach ($task in Get-ScheduledTask -TaskPath '\CodexTelegramBridge\') 
 $command = Get-Command codex -ErrorAction SilentlyContinue
 $report = [ordered]@{
     schema_version=1; observed_utc=[DateTimeOffset]::UtcNow.ToString('O'); versions=@($versions)
-    doctor_exit=$doctorExit; overall=$doctor.overall; conditions=$doctor.conditions
+    doctor_exit=$doctorExit; overall=$doctor.overall; conditions=$doctor.conditions; checks=$doctor.checks
     telegram_online=$doctor.checks.telegram_online; capture_mode=$doctor.capture_mode; delivery_paused=$doctor.delivery_paused
     processes=@($processes); stages=@($stages); tasks=@($tasks)
     codex_command_extension=if($command){[IO.Path]::GetExtension($command.Source)}else{$null}

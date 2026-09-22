@@ -6,6 +6,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 $package = (Resolve-Path -LiteralPath $PackageRoot).Path
 $manifest = Join-Path $package 'manifest.sha256'
 if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash -ine $ExpectedManifestSha256) {
@@ -45,6 +46,9 @@ $before = [ordered]@{
     runtime = (Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json)
     credentials_sha256 = (Get-FileHash -LiteralPath $credentialsPath -Algorithm SHA256).Hash
 }
+$beforeDoctor = (& (Join-Path $installed 'bin\CodexTelegramCtl.exe') doctor --json | Out-String) | ConvertFrom-Json
+if ($LASTEXITCODE -notin @(0,1)) { throw 'EXISTING_DOCTOR_FAILED' }
+$before['conditions'] = @($beforeDoctor.conditions)
 $before | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $stage 'before.json') -Encoding UTF8
 
 $taskPath = '\CodexTelegramBridge\'
