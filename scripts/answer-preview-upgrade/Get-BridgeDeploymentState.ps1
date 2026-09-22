@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param([Parameter(Mandatory = $true)][string]$OutputPath)
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 $root = Join-Path $env:LOCALAPPDATA 'CodexTelegramBridge'
 $ctl = Join-Path $root 'bin\CodexTelegramCtl.exe'
 $doctor = (& $ctl doctor --online --json | Out-String) | ConvertFrom-Json
@@ -45,3 +46,4 @@ $report = [ordered]@{
 # Deliberately excludes paths, PC/user names, SIDs, credentials and message content.
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
 Write-Output 'deployment_state_written=yes'
+exit 0
