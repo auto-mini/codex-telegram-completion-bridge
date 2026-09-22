@@ -11,11 +11,21 @@ public sealed class WorkerRunnerIntegrationTests : IDisposable
     public async Task Idle_worker_exits_after_configured_quiet_period()
     {
         var config = PrepareConfig();
-        var processor = new SequenceProcessor(new WorkerIterationResult(WorkerIterationKind.Waiting));
+        var stopwatch = new Stopwatch();
+        var processor = new SequenceProcessor(new WorkerIterationResult(WorkerIterationKind.Waiting))
+        {
+            OnCall = _ => stopwatch.Start(),
+        };
         var runner = new WorkerRunner(processor, config.Store, () => DateTimeOffset.UtcNow, TimeSpan.FromMilliseconds(40), TimeSpan.FromMilliseconds(40));
-        var stopwatch = Stopwatch.StartNew();
 
-        var exit = await Task.Run(() => runner.RunAsync(CancellationToken.None));
+        var exit = await Task.Run(() =>
+        {
+            var result = runner.RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+            // Measure the worker's quiet period, not thread-pool queueing or the
+            // test continuation being scheduled on a busy shared CI host.
+            stopwatch.Stop();
+            return result;
+        });
 
         Assert.Equal(0, exit);
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2));
